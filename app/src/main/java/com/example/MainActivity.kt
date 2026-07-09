@@ -33,6 +33,8 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -72,6 +74,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.InventoryScreen
 import com.example.ui.screens.LabelPrinterScreen
+import com.example.ui.screens.NotificationScreen
 import com.example.ui.screens.ReportScreen
 import com.example.ui.screens.SyncSettingsScreen
 import com.example.ui.screens.TransactionScreen
@@ -87,8 +90,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MyApplicationTheme {
-                MainShell()
+            val viewModel: AppViewModel = viewModel()
+            val isDarkTheme by viewModel.isDarkTheme.collectAsState()
+            MyApplicationTheme(darkTheme = isDarkTheme) {
+                MainShell(viewModel)
             }
         }
     }
@@ -96,8 +101,7 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainShell() {
-    val viewModel: AppViewModel = viewModel()
+fun MainShell(viewModel: AppViewModel = viewModel()) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -120,170 +124,189 @@ fun MainShell() {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(NeonCyan.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
+            if (currentRoute != "notifikasi") {
+                TopAppBar(
+                    title = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(NeonCyan.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "SS",
+                                    color = NeonCyan,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 14.sp
+                                )
+                            }
                             Text(
-                                text = "SS",
-                                color = NeonCyan,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 14.sp
+                                text = "Seller Sphere",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
-                        Text(
-                            text = "Seller Sphere",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
-                ),
-                actions = {
-                    // Small mock notification hub button showing alerts count
-                    val lowStockList by viewModel.lowStockProducts.collectAsState()
-                    Box(
-                        modifier = Modifier
-                            .padding(end = 16.dp)
-                            .clickable {
-                                if (lowStockList.isNotEmpty()) {
-                                    navController.navigate("barang") {
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    actions = {
+                        val isDarkTheme by viewModel.isDarkTheme.collectAsState()
+                        // Theme Toggle Button
+                        Box(
+                            modifier = Modifier
+                                .padding(end = 12.dp)
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f))
+                                .clickable {
+                                    viewModel.toggleDarkTheme()
+                                }
+                                .testTag("theme_toggle_button"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                contentDescription = "Toggle Theme",
+                                tint = if (isDarkTheme) NeonCyan else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        // Small mock notification hub button showing alerts count
+                        val lowStockList by viewModel.lowStockProducts.collectAsState()
+                        Box(
+                            modifier = Modifier
+                                .padding(end = 16.dp)
+                                .clickable {
+                                    navController.navigate("notifikasi") {
                                         popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                                         launchSingleTop = true
                                         restoreState = true
                                     }
-                                } else {
-                                    viewModel.triggerNotification(
-                                        "Kondisi Aman",
-                                        "Semua stok barang Anda dalam keadaan aman di atas ambang batas minimum."
-                                    )
                                 }
-                            }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Notifications,
-                            contentDescription = "Alerts",
-                            tint = if (lowStockList.isNotEmpty()) WarmOrange else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (lowStockList.isNotEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(WarmOrange)
-                                    .align(Alignment.TopEnd)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Alerts",
+                                tint = if (lowStockList.isNotEmpty()) WarmOrange else MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            if (lowStockList.isNotEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(WarmOrange)
+                                        .align(Alignment.TopEnd)
+                                )
+                            }
                         }
-                    }
-                },
-                modifier = Modifier.testTag("app_top_bar")
-            )
+                    },
+                    modifier = Modifier.testTag("app_top_bar")
+                )
+            }
         },
         bottomBar = {
-            val items = listOf(
-                CustomNavigationItem("dasbor", "Dasbor", Icons.Default.Home, "nav_item_dasbor"),
-                CustomNavigationItem("barang", "Stok", Icons.Default.Category, "nav_item_barang"),
-                CustomNavigationItem("kasir", "Transaksi", Icons.Default.Receipt, "nav_item_kasir", isCentral = true),
-                CustomNavigationItem("label", "Label", Icons.Default.QrCode, "nav_item_label"),
-                CustomNavigationItem("laporan_sync", "Laporan", Icons.Default.LocalShipping, "nav_item_laporan")
-            )
+            if (currentRoute != "notifikasi") {
+                val items = listOf(
+                    CustomNavigationItem("dasbor", "Dasbor", Icons.Default.Home, "nav_item_dasbor"),
+                    CustomNavigationItem("barang", "Stok", Icons.Default.Category, "nav_item_barang"),
+                    CustomNavigationItem("kasir", "Transaksi", Icons.Default.Receipt, "nav_item_kasir", isCentral = true),
+                    CustomNavigationItem("label", "Label", Icons.Default.QrCode, "nav_item_label"),
+                    CustomNavigationItem("laporan_sync", "Laporan", Icons.Default.LocalShipping, "nav_item_laporan")
+                )
 
-            Box(
-                modifier = Modifier
-                    .navigationBarsPadding()
-                    .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
-                    .fillMaxWidth()
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(28.dp),
-                    color = com.example.ui.theme.SlateDarkCard,
-                    border = BorderStroke(1.dp, com.example.ui.theme.SlateBorder),
-                    tonalElevation = 8.dp,
-                    modifier = Modifier.testTag("app_bottom_nav_bar")
+                Box(
+                    modifier = Modifier
+                        .navigationBarsPadding()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                        .fillMaxWidth()
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 10.dp, horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        shape = RoundedCornerShape(28.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                        tonalElevation = 8.dp,
+                        modifier = Modifier.testTag("app_bottom_nav_bar")
                     ) {
-                        items.forEach { item ->
-                            val isSelected = currentRoute == item.route
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 10.dp, horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            items.forEach { item ->
+                                val isSelected = currentRoute == item.route
 
-                            if (item.isCentral) {
-                                // Special highlighted circular button (Kasir)
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .size(56.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            if (isSelected) NeonCyan else NeonCyan.copy(alpha = 0.12f)
+                                if (item.isCentral) {
+                                    // Special highlighted circular button (Kasir)
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .size(56.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (isSelected) NeonCyan else NeonCyan.copy(alpha = 0.12f)
+                                            )
+                                            .clickable {
+                                                if (currentRoute != item.route) {
+                                                    navController.navigate(item.route) {
+                                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                                        launchSingleTop = true
+                                                        restoreState = true
+                                                    }
+                                                }
+                                            }
+                                            .testTag(item.testTag)
+                                    ) {
+                                        Icon(
+                                            imageVector = item.icon,
+                                            contentDescription = item.label,
+                                            modifier = Modifier.size(26.dp),
+                                            tint = if (isSelected) Color(0xFF020617) else NeonCyan
                                         )
-                                        .clickable {
-                                            if (currentRoute != item.route) {
-                                                navController.navigate(item.route) {
-                                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                                    launchSingleTop = true
-                                                    restoreState = true
+                                    }
+                                } else {
+                                    // Normal items (Dashboard, Inventory, Label, Reports)
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable {
+                                                if (currentRoute != item.route) {
+                                                    navController.navigate(item.route) {
+                                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                                        launchSingleTop = true
+                                                        restoreState = true
+                                                    }
                                                 }
                                             }
-                                        }
-                                        .testTag(item.testTag)
-                                ) {
-                                    Icon(
-                                        imageVector = item.icon,
-                                        contentDescription = item.label,
-                                        modifier = Modifier.size(26.dp),
-                                        tint = if (isSelected) com.example.ui.theme.SlateDarkBackground else NeonCyan
-                                    )
-                                }
-                            } else {
-                                // Normal items (Dashboard, Inventory, Label, Reports)
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .clickable {
-                                            if (currentRoute != item.route) {
-                                                navController.navigate(item.route) {
-                                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                                    launchSingleTop = true
-                                                    restoreState = true
-                                                }
-                                            }
-                                        }
-                                        .padding(vertical = 4.dp, horizontal = 8.dp)
-                                        .testTag(item.testTag)
-                                ) {
-                                    Icon(
-                                        imageVector = item.icon,
-                                        contentDescription = item.label,
-                                        tint = if (isSelected) NeonCyan else com.example.ui.theme.SlateTextSecondary.copy(alpha = 0.7f),
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(3.dp))
-                                    Text(
-                                        text = item.label,
-                                        color = if (isSelected) NeonCyan else com.example.ui.theme.SlateTextSecondary.copy(alpha = 0.7f),
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        fontSize = 11.sp
-                                    )
+                                            .padding(vertical = 4.dp, horizontal = 8.dp)
+                                            .testTag(item.testTag)
+                                    ) {
+                                        Icon(
+                                            imageVector = item.icon,
+                                            contentDescription = item.label,
+                                            tint = if (isSelected) NeonCyan else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(3.dp))
+                                        Text(
+                                            text = item.label,
+                                            color = if (isSelected) NeonCyan else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            fontSize = 11.sp
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -346,6 +369,22 @@ fun MainShell() {
 
                 composable("laporan_sync") {
                     LaporanSyncCombinedTabScreen(viewModel = viewModel)
+                }
+
+                composable("notifikasi") {
+                    NotificationScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = {
+                            navController.popBackStack()
+                        },
+                        onNavigateToInventory = {
+                            navController.navigate("barang") {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    )
                 }
             }
 

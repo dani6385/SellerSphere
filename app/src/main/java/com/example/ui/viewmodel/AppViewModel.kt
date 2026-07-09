@@ -80,6 +80,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _todayTarget = MutableStateFlow<SalesTarget?>(null)
     val todayTarget: StateFlow<SalesTarget?> = _todayTarget.asStateFlow()
 
+    // --- Theme Settings ---
+    private val prefs = application.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+    private val _isDarkTheme = MutableStateFlow<Boolean>(prefs.getBoolean("is_dark_theme", true))
+    val isDarkTheme: StateFlow<Boolean> = _isDarkTheme.asStateFlow()
+
+    fun toggleDarkTheme() {
+        val newVal = !_isDarkTheme.value
+        _isDarkTheme.value = newVal
+        prefs.edit().putBoolean("is_dark_theme", newVal).apply()
+    }
+
     fun loadTodayTarget() {
         viewModelScope.launch {
             repository.getTargetForDate(getTodayDateString()).collect { target ->
@@ -253,6 +264,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             )
             repository.insertProduct(product)
             triggerNotification("Produk Ditambahkan", "Produk $name berhasil dimasukkan ke inventaris.")
+            if (product.isLowStock) {
+                triggerNotification(
+                    "Peringatan Stok Rendah!",
+                    "Stok ${product.name} saat ini (${product.stock} unit) berada di bawah ambang batas minimum yang Anda tentukan (${product.minStockThreshold} unit)."
+                )
+            }
         }
     }
 
@@ -260,6 +277,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.updateProduct(product)
             triggerNotification("Produk Diperbarui", "Data ${product.name} telah disimpan.")
+            if (product.isLowStock) {
+                triggerNotification(
+                    "Peringatan Stok Rendah!",
+                    "Stok ${product.name} saat ini (${product.stock} unit) berada di bawah ambang batas minimum yang Anda tentukan (${product.minStockThreshold} unit)."
+                )
+            }
         }
     }
 
@@ -455,6 +478,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val lines = csvContent.lines()
             if (lines.size <= 1) return false
             viewModelScope.launch {
+                val lowStockNames = mutableListOf<String>()
                 lines.forEachIndexed { index, line ->
                     if (index == 0 || line.isBlank()) return@forEachIndexed
                     val tokens = parseCsvLine(line)
@@ -477,9 +501,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             minStockThreshold = threshold
                         )
                         repository.insertProduct(p)
+                        if (p.isLowStock) {
+                            lowStockNames.add(p.name)
+                        }
                     }
                 }
                 triggerNotification("Impor Sukses", "Data produk berhasil diimpor dari file CSV Excel.")
+                if (lowStockNames.isNotEmpty()) {
+                    triggerNotification(
+                        "Peringatan Stok Rendah!",
+                        "${lowStockNames.size} produk yang diimpor memiliki stok di bawah batas minimum: ${lowStockNames.joinToString(", ")}"
+                    )
+                }
             }
             return true
         } catch (e: Exception) {
@@ -536,6 +569,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _notificationFlow.emit(newItem)
         }
+    }
+
+    fun clearNotifications() {
+        _notifications.value = emptyList()
+    }
+
+    fun deleteNotification(id: Long) {
+        _notifications.value = _notifications.value.filterNot { it.id == id }
     }
 
     // --- Seed Demo Data (Interactive Analytics) ---
@@ -670,6 +711,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
 
+                val verCode = (100000 + (orderId.hashCode() % 900000).let { if (it < 0) -it else it }).toString()
+
                 ordersList.add(
                     ShopsphereOrder(
                         id = orderId,
@@ -681,7 +724,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         courierName = courName,
                         courierPhone = phone,
                         totalAmount = amount,
-                        status = status
+                        status = status,
+                        verificationCode = verCode
                     )
                 )
             }
@@ -761,5 +805,6 @@ data class ShopsphereOrder(
     val courierName: String,
     val courierPhone: String,
     val totalAmount: Double,
-    val status: String // "Perlu Dipacking", "Siap Diambil", "Selesai Diambil"
+    val status: String, // "Perlu Dipacking", "Siap Diambil", "Selesai Diambil"
+    val verificationCode: String
 )

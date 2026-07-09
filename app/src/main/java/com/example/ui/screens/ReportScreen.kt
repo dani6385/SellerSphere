@@ -29,6 +29,9 @@ import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Unarchive
+import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -37,12 +40,21 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import com.example.ui.util.PdfReportUtil
+import android.net.Uri
+import android.content.Intent
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -188,6 +200,189 @@ fun ReportScreen(viewModel: AppViewModel) {
                             Icon(imageVector = Icons.Default.Download, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Excel Transaksi", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            // Laporan Stok Menipis (PDF) Card
+            val lowStockList by viewModel.lowStockProducts.collectAsState()
+            val context = LocalContext.current
+            val coroutineScope = rememberCoroutineScope()
+            var pdfProgress by remember { mutableStateOf<Float?>(null) }
+            var generatedPdfUri by remember { mutableStateOf<Uri?>(null) }
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("low_stock_pdf_card")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                if (lowStockList.isNotEmpty()) WarmOrange.copy(alpha = 0.15f)
+                                else SoftTeal.copy(alpha = 0.15f)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (lowStockList.isNotEmpty()) Icons.Default.WarningAmber else Icons.Default.Assignment,
+                            contentDescription = null,
+                            tint = if (lowStockList.isNotEmpty()) WarmOrange else SoftTeal,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Laporan Stok Menipis (PDF)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = if (lowStockList.isEmpty()) {
+                                "Semua stok produk aman di atas ambang batas."
+                            } else {
+                                "Ada ${lowStockList.size} produk di bawah batas minimum."
+                            },
+                            fontSize = 9.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                        
+                        // Progress description if generating
+                        pdfProgress?.let { progress ->
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Memproses laporan PDF... (${(progress * 100).toInt()}%)",
+                                fontSize = 9.sp,
+                                color = NeonCyan,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (pdfProgress != null) {
+                            CircularProgressIndicator(
+                                progress = pdfProgress ?: 0f,
+                                modifier = Modifier.size(20.dp),
+                                color = NeonCyan,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            if (generatedPdfUri != null) {
+                                Button(
+                                    onClick = {
+                                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                                            setDataAndType(generatedPdfUri, "application/pdf")
+                                            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
+                                        }
+                                        try {
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            viewModel.triggerNotification(
+                                                "Buka PDF Gagal", 
+                                                "Tidak ada aplikasi pembaca PDF. Cari file di folder Unduhan."
+                                            )
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = SoftTeal),
+                                    shape = RoundedCornerShape(6.dp),
+                                    modifier = Modifier
+                                        .height(28.dp)
+                                        .testTag("open_low_stock_pdf_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.OpenInNew,
+                                        contentDescription = null,
+                                        tint = Color.Black,
+                                        modifier = Modifier.size(10.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Text("Buka", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            Button(
+                                onClick = {
+                                    if (lowStockList.isEmpty()) {
+                                        viewModel.triggerNotification(
+                                            "Laporan PDF",
+                                            "Tidak ada produk di bawah ambang batas untuk dimasukkan ke laporan."
+                                        )
+                                        return@Button
+                                    }
+                                    coroutineScope.launch {
+                                        pdfProgress = 0.0f
+                                        withContext(Dispatchers.IO) {
+                                            // Simulate evaluation and processing on a background thread
+                                            val stepTime = 200L
+                                            kotlinx.coroutines.delay(stepTime)
+                                            withContext(Dispatchers.Main) { pdfProgress = 0.2f }
+                                            
+                                            kotlinx.coroutines.delay(stepTime)
+                                            withContext(Dispatchers.Main) { pdfProgress = 0.4f }
+                                            
+                                            val uri = PdfReportUtil.generateLowStockPdfReport(context, lowStockList) { progress ->
+                                                coroutineScope.launch(Dispatchers.Main) {
+                                                    pdfProgress = progress
+                                                }
+                                            }
+                                            
+                                            kotlinx.coroutines.delay(stepTime)
+                                            withContext(Dispatchers.Main) {
+                                                generatedPdfUri = uri
+                                                pdfProgress = null
+                                                if (uri != null) {
+                                                    viewModel.triggerNotification(
+                                                        "Unduh PDF Selesai 🖨️",
+                                                        "Laporan Stok Menipis (${lowStockList.size} produk) berhasil diunduh ke folder Downloads."
+                                                    )
+                                                } else {
+                                                    viewModel.triggerNotification(
+                                                        "Gagal Membuat PDF",
+                                                        "Terjadi kesalahan saat memproses laporan PDF."
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (generatedPdfUri != null) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
+                                ),
+                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier
+                                    .height(28.dp)
+                                    .testTag("download_low_stock_pdf_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PictureAsPdf,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(10.dp)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    text = if (generatedPdfUri != null) "Cetak Ulang" else "Unduh PDF",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }

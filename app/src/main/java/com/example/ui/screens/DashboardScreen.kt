@@ -48,6 +48,41 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import androidx.compose.material.icons.filled.QrCode
+import android.util.Log
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.common.InputImage
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -757,9 +792,22 @@ data class DayOrderStats(val completed: Int, val awaiting: Int) {
 @Composable
 fun OrderPickupItem(order: ShopsphereOrder, viewModel: AppViewModel) {
     val isPickedUp = order.status == "Selesai Diambil"
+    var showVerificationDialog by remember { mutableStateOf(false) }
+
+    if (showVerificationDialog) {
+        OrderVerificationDialog(
+            order = order,
+            onDismiss = { showVerificationDialog = false },
+            onVerifySuccess = {
+                viewModel.confirmOrderPickup(order.id)
+                showVerificationDialog = false
+            }
+        )
+    }
+
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (isPickedUp) Color(0xFF0F172A).copy(alpha = 0.4f) else Color(0xFF1E293B)
+            containerColor = if (isPickedUp) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surfaceVariant
         ),
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth()
@@ -834,6 +882,27 @@ fun OrderPickupItem(order: ShopsphereOrder, viewModel: AppViewModel) {
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
             )
+
+            if (order.status == "Siap Diambil") {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = SoftTeal,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Text(
+                        text = "Verifikasi Barcode & PIN Aman Aktif",
+                        fontSize = 10.sp,
+                        color = SoftTeal,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
 
             // Packing Instruction Prompt
             if (order.status == "Perlu Dipacking") {
@@ -919,7 +988,7 @@ fun OrderPickupItem(order: ShopsphereOrder, viewModel: AppViewModel) {
 
                         // Confirm pickup
                         Button(
-                            onClick = { viewModel.confirmOrderPickup(order.id) },
+                            onClick = { showVerificationDialog = true },
                             colors = ButtonDefaults.buttonColors(containerColor = SoftTeal),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.weight(1.8f).height(36.dp),
@@ -932,6 +1001,537 @@ fun OrderPickupItem(order: ShopsphereOrder, viewModel: AppViewModel) {
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun OrderVerificationDialog(
+    order: ShopsphereOrder,
+    onDismiss: () -> Unit,
+    onVerifySuccess: () -> Unit
+) {
+    var activeTab by remember { mutableStateOf(1) } // Default to real camera scan
+    var inputCode by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf("") }
+    var isScanning by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.QrCode,
+                    contentDescription = null,
+                    tint = NeonCyan,
+                    modifier = Modifier.size(24.dp)
+                )
+                Text(
+                    text = "Verifikasi Pengambilan",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Info Section
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Pesanan: ${order.id}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = NeonCyan
+                        )
+                        Text(
+                            text = "Pelanggan: ${order.customerName}",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Produk: ${order.productName} x${order.quantity}",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Tab Selector
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF0F172A))
+                        .padding(2.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    TextButton(
+                        onClick = { activeTab = 1 },
+                        colors = ButtonDefaults.textButtonColors(
+                            containerColor = if (activeTab == 1) Color(0xFF334155) else Color.Transparent
+                        ),
+                        modifier = Modifier.weight(1.2f).height(32.dp),
+                        shape = RoundedCornerShape(6.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                    ) {
+                        Text(
+                            text = "Kamera Real-time 📷",
+                            color = if (activeTab == 1) NeonCyan else Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    TextButton(
+                        onClick = { activeTab = 0 },
+                        colors = ButtonDefaults.textButtonColors(
+                            containerColor = if (activeTab == 0) Color(0xFF334155) else Color.Transparent
+                        ),
+                        modifier = Modifier.weight(1f).height(32.dp),
+                        shape = RoundedCornerShape(6.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                    ) {
+                        Text(
+                            text = "Manual & Simulasi",
+                            color = if (activeTab == 0) NeonCyan else Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                if (activeTab == 0) {
+                    // Manual UI
+                    Text(
+                        text = "Gunakan barcode pembeli atau ketik kode verifikasi 6-digit untuk memastikan penyerahan pesanan yang sah.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    // Simulated Barcode Section
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White)
+                            .padding(12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            // Drawing realistic vertical lines for Barcode
+                            Row(
+                                modifier = Modifier
+                                    .height(50.dp)
+                                    .fillMaxWidth(0.85f),
+                                horizontalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                val widths = listOf(2, 4, 1, 3, 2, 5, 1, 3, 2, 4, 1, 2, 4, 1, 3, 2, 3, 1, 4, 2)
+                                widths.forEach { w ->
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxHeight()
+                                            .width(w.dp)
+                                            .background(Color.Black)
+                                    )
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "* ${order.verificationCode} *",
+                                color = Color.Black,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 2.sp
+                            )
+                        }
+
+                        // Scan Laser Animation overlay
+                        if (isScanning) {
+                            val infiniteTransition = rememberInfiniteTransition()
+                            val laserOffset by infiniteTransition.animateFloat(
+                                initialValue = 0f,
+                                targetValue = 80f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(1200, easing = LinearEasing),
+                                    repeatMode = RepeatMode.Reverse
+                                )
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(0.9f)
+                                    .height(2.dp)
+                                    .background(Color.Red)
+                                    .offset(y = (-40 + laserOffset.toInt()).dp)
+                            )
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Red.copy(alpha = 0.08f))
+                            )
+                        }
+                    }
+
+                    // Scanning status or verification code field
+                    if (isScanning) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = NeonCyan,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Memindai Barcode Pembeli...",
+                                fontSize = 12.sp,
+                                color = NeonCyan,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    } else {
+                        OutlinedTextField(
+                            value = inputCode,
+                            onValueChange = {
+                                if (it.length <= 6) {
+                                    inputCode = it
+                                    errorMessage = ""
+                                }
+                            },
+                            label = { Text("Kode Verifikasi (6 Digit)") },
+                            placeholder = { Text("Contoh: ${order.verificationCode}") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth(),
+                            isError = errorMessage.isNotEmpty(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = NeonCyan,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                            )
+                        )
+                    }
+
+                    // Quick Scan helper
+                    Button(
+                        onClick = {
+                            isScanning = true
+                            errorMessage = ""
+                            coroutineScope.launch {
+                                kotlinx.coroutines.delay(1800)
+                                isScanning = false
+                                inputCode = order.verificationCode
+                            }
+                        },
+                        enabled = !isScanning,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.QrCode,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Simulasi Scan Barcode 📸",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                } else {
+                    // Camera Live UI
+                    val context = LocalContext.current
+                    var hasCameraPermission by remember {
+                        mutableStateOf(
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                        )
+                    }
+
+                    val permissionLauncher = rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.RequestPermission()
+                    ) { isGranted ->
+                        hasCameraPermission = isGranted
+                        if (!isGranted) {
+                            errorMessage = "Izin Kamera diperlukan untuk memindai QR code."
+                        }
+                    }
+
+                    if (!hasCameraPermission) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF0F172A))
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = Color.Yellow,
+                                modifier = Modifier.size(36.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Izin Kamera Dibutuhkan",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Aktifkan kamera untuk memindai QR / Barcode secara langsung.",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = {
+                                    permissionLauncher.launch(Manifest.permission.CAMERA)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = SoftTeal),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Berikan Izin Kamera", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    } else {
+                        // Live Scanner Frame
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(180.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.Black),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CameraPreview(
+                                modifier = Modifier.fillMaxSize(),
+                                onBarcodeDetected = { scannedCode ->
+                                    val cleaned = scannedCode.trim()
+                                    if (cleaned == order.verificationCode) {
+                                        onVerifySuccess()
+                                    } else {
+                                        errorMessage = "Terdeteksi kode: '$cleaned'. (Pesanan ini memerlukan: '${order.verificationCode}')"
+                                    }
+                                }
+                            )
+
+                            // Scanning overlay borders
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                val strokeWidth = 3.dp.toPx()
+                                val cornerLength = 20.dp.toPx()
+                                val padding = 15.dp.toPx()
+                                val rectSize = size.height - (padding * 2)
+                                val left = (size.width - rectSize) / 2
+                                val top = padding
+                                val right = left + rectSize
+                                val bottom = top + rectSize
+
+                                // Top-Left
+                                drawLine(color = NeonCyan, start = Offset(left, top), end = Offset(left + cornerLength, top), strokeWidth = strokeWidth)
+                                drawLine(color = NeonCyan, start = Offset(left, top), end = Offset(left, top + cornerLength), strokeWidth = strokeWidth)
+
+                                // Top-Right
+                                drawLine(color = NeonCyan, start = Offset(right, top), end = Offset(right - cornerLength, top), strokeWidth = strokeWidth)
+                                drawLine(color = NeonCyan, start = Offset(right, top), end = Offset(right, top + cornerLength), strokeWidth = strokeWidth)
+
+                                // Bottom-Left
+                                drawLine(color = NeonCyan, start = Offset(left, bottom), end = Offset(left + cornerLength, bottom), strokeWidth = strokeWidth)
+                                drawLine(color = NeonCyan, start = Offset(left, bottom), end = Offset(left, bottom - cornerLength), strokeWidth = strokeWidth)
+
+                                // Bottom-Right
+                                drawLine(color = NeonCyan, start = Offset(right, bottom), end = Offset(right - cornerLength, bottom), strokeWidth = strokeWidth)
+                                drawLine(color = NeonCyan, start = Offset(right, bottom), end = Offset(right, bottom - cornerLength), strokeWidth = strokeWidth)
+                            }
+
+                            // Moving scan line animation
+                            val infiniteTransition = rememberInfiniteTransition()
+                            val laserOffset by infiniteTransition.animateFloat(
+                                initialValue = 0f,
+                                targetValue = 160f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(1500, easing = LinearEasing),
+                                    repeatMode = RepeatMode.Reverse
+                                )
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(0.8f)
+                                    .height(2.dp)
+                                    .background(Color.Red)
+                                    .offset(y = (-80 + laserOffset.toInt()).dp)
+                            )
+                        }
+
+                        Text(
+                            text = "Arahkan kamera ke barcode/QR Code pembeli untuk verifikasi otomatis.",
+                            fontSize = 11.sp,
+                            color = NeonCyan,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
+                if (errorMessage.isNotEmpty()) {
+                    Text(
+                        text = errorMessage,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            if (activeTab == 0) {
+                Button(
+                    onClick = {
+                        if (inputCode == order.verificationCode) {
+                            onVerifySuccess()
+                        } else {
+                            errorMessage = "Kode verifikasi salah! Cocokkan barcode atau ketik 6-digit kode pembeli."
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SoftTeal),
+                    enabled = !isScanning && inputCode.length == 6
+                ) {
+                    Text("Konfirmasi Penyerahan", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isScanning) {
+                Text("Batal", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(16.dp)
+    )
+}
+
+@OptIn(androidx.camera.core.ExperimentalGetImage::class)
+@Composable
+fun CameraPreview(
+    modifier: Modifier = Modifier,
+    onBarcodeDetected: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
+
+    AndroidView(
+        factory = { ctx ->
+            val previewView = PreviewView(ctx).apply {
+                scaleType = PreviewView.ScaleType.FILL_CENTER
+            }
+            val executor = ContextCompat.getMainExecutor(ctx)
+            cameraProviderFuture.addListener({
+                val cameraProvider = cameraProviderFuture.get()
+                val preview = Preview.Builder().build().also {
+                    it.surfaceProvider = previewView.surfaceProvider
+                }
+
+                val imageAnalysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .build()
+                    .also {
+                        it.setAnalyzer(executor, BarcodeAnalyzer { code ->
+                            onBarcodeDetected(code)
+                        })
+                    }
+
+                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+                try {
+                    cameraProvider.unbindAll()
+                    cameraProvider.bindToLifecycle(
+                        lifecycleOwner,
+                        cameraSelector,
+                        preview,
+                        imageAnalysis
+                    )
+                } catch (e: Exception) {
+                    Log.e("CameraPreview", "Failed to bind camera use cases", e)
+                }
+            }, executor)
+            previewView
+        },
+        modifier = modifier
+    )
+}
+
+class BarcodeAnalyzer(
+    private val onBarcodeDetected: (String) -> Unit
+) : ImageAnalysis.Analyzer {
+
+    private val options = BarcodeScannerOptions.Builder()
+        .setBarcodeFormats(
+            Barcode.FORMAT_QR_CODE,
+            Barcode.FORMAT_CODE_128,
+            Barcode.FORMAT_CODE_39,
+            Barcode.FORMAT_EAN_13,
+            Barcode.FORMAT_EAN_8
+        )
+        .build()
+
+    private val scanner = BarcodeScanning.getClient(options)
+
+    @androidx.camera.core.ExperimentalGetImage
+    override fun analyze(imageProxy: ImageProxy) {
+        val mediaImage = imageProxy.image
+        if (mediaImage != null) {
+            val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+            scanner.process(image)
+                .addOnSuccessListener { barcodes ->
+                    for (barcode in barcodes) {
+                        val rawValue = barcode.rawValue
+                        if (!rawValue.isNullOrBlank()) {
+                            onBarcodeDetected(rawValue)
+                            break
+                        }
+                    }
+                }
+                .addOnFailureListener {
+                    // Suppress error logs in frame-by-frame analysis
+                }
+                .addOnCompleteListener {
+                    imageProxy.close()
+                }
+        } else {
+            imageProxy.close()
         }
     }
 }

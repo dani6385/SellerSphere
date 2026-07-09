@@ -55,6 +55,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.Image
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -208,7 +210,7 @@ fun LabelPrinterScreen(viewModel: AppViewModel) {
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                listOf("Minimalis Modern", "Diskon/Promo", "Grosir", "Barcode Klasik").forEach { temp ->
+                                listOf("Minimalis Modern", "Diskon/Promo", "Grosir", "Barcode Klasik", "QR Code").forEach { temp ->
                                     val isSelected = selectedTemplate == temp
                                     Box(
                                         modifier = Modifier
@@ -416,6 +418,81 @@ fun LabelPrinterScreen(viewModel: AppViewModel) {
                                 fontSize = 11.sp,
                                 textAlign = TextAlign.Center
                             )
+                        }
+                    } else if (selectedTemplate == "QR Code") {
+                        // Custom Live Thermal QR Code Sticker Design
+                        val prod = selectedProduct!!
+                        val qrText = if (prod.sku.isBlank()) "PROD-${prod.id}" else prod.sku
+                        val qrBitmap = remember(qrText) {
+                            com.example.ui.util.QrCodeUtil.generateQrCode(qrText, 250)
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = customStoreName.uppercase(),
+                                color = Color.Black,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(1.dp)
+                                    .background(Color.Black)
+                            )
+
+                            if (qrBitmap != null) {
+                                Image(
+                                    bitmap = qrBitmap.asImageBitmap(),
+                                    contentDescription = "Sticker QR",
+                                    modifier = Modifier
+                                        .size(75.dp)
+                                        .border(0.5.dp, Color.Gray)
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .size(75.dp)
+                                        .background(Color.LightGray),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("QR Gagal", fontSize = 9.sp, color = Color.Red)
+                                }
+                            }
+
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = prod.name.uppercase(),
+                                    color = Color.Black,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    textAlign = TextAlign.Center
+                                )
+                                Text(
+                                    text = "SKU: $qrText",
+                                    color = Color.DarkGray,
+                                    fontSize = 8.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = viewModel.formatRupiah(prod.sellingPrice),
+                                    color = Color.Black,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
                         }
                     } else {
                         // Custom Live Thermal Sticker Drawing Canvas

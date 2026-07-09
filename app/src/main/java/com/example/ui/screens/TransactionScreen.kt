@@ -205,7 +205,7 @@ fun TransactionScreen(viewModel: AppViewModel) {
                         )
                 ) {
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF131A2E)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.5f)),
                         shape = RoundedCornerShape(16.dp),
                         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
@@ -463,7 +463,7 @@ fun PosProductCard(
     }
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF131A2E)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier
             .fillMaxWidth()
@@ -547,7 +547,7 @@ fun CartItemRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF131A2E), RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -557,7 +557,7 @@ fun CartItemRow(
                 text = product.name,
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

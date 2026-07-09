@@ -68,27 +68,67 @@ import com.example.ui.viewmodel.AppViewModel
 fun TransactionScreen(viewModel: AppViewModel) {
     val products by viewModel.products.collectAsState()
     val cart by viewModel.cart.collectAsState()
+    val shopsphereOrders by viewModel.shopsphereOrders.collectAsState()
 
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedPaymentMethod by remember { mutableStateOf("Tunai") } // Tunai, QRIS, Transfer
+    var activeTab by remember { mutableStateOf(0) } // 0: Kasir POS, 1: Orderan Masuk
 
-    // Filter available products
-    val filteredProducts = remember(products, searchQuery) {
-        products.filter { p ->
-            p.name.contains(searchQuery, ignoreCase = true) || p.sku.contains(searchQuery, ignoreCase = true)
-        }
-    }
-
-    val cartTotal = remember(cart) {
-        cart.entries.sumOf { (product, qty) -> product.sellingPrice * qty }
-    }
-
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(16.dp)
     ) {
+        // Custom Segmented Pill Tab Selector
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            val tabs = listOf("Kasir POS", "Orderan Masuk")
+            tabs.forEachIndexed { index, title ->
+                val isSelected = activeTab == index
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (isSelected) NeonCyan else Color.Transparent)
+                        .clickable { activeTab = index }
+                        .padding(vertical = 10.dp)
+                        .testTag("transaction_tab_$index"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = title,
+                        color = if (isSelected) com.example.ui.theme.SlateDarkBackground else MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+        }
+
+        if (activeTab == 0) {
+            var searchQuery by remember { mutableStateOf("") }
+            var selectedPaymentMethod by remember { mutableStateOf("Tunai") } // Tunai, QRIS, Transfer
+
+            // Filter available products
+            val filteredProducts = remember(products, searchQuery) {
+                products.filter { p ->
+                    p.name.contains(searchQuery, ignoreCase = true) || p.sku.contains(searchQuery, ignoreCase = true)
+                }
+            }
+
+            val cartTotal = remember(cart) {
+                cart.entries.sumOf { (product, qty) -> product.sellingPrice * qty }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
         // Left Side: Product Selector (60% width)
         Column(
             modifier = Modifier
@@ -323,6 +363,168 @@ fun TransactionScreen(viewModel: AppViewModel) {
                     Icon(imageVector = Icons.Default.Payment, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(text = "Bayar Sekarang", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+    }
+        } else {
+            OrdersTabContent(viewModel = viewModel, orders = shopsphereOrders)
+        }
+    }
+}
+
+@Composable
+fun OrdersTabContent(viewModel: AppViewModel, orders: List<com.example.ui.viewmodel.ShopsphereOrder>) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedFilter by remember { mutableStateOf("Semua") } // Semua, Menunggu Kurir, Kurir Menuju Lokasi, Selesai Dijemput
+
+    // Filtered orders list
+    val filteredOrders = remember(orders, searchQuery, selectedFilter) {
+        orders.filter { order ->
+            val matchesSearch = order.id.contains(searchQuery, ignoreCase = true) ||
+                    order.customerName.contains(searchQuery, ignoreCase = true) ||
+                    order.productName.contains(searchQuery, ignoreCase = true) ||
+                    order.courierName.contains(searchQuery, ignoreCase = true)
+
+            val matchesFilter = selectedFilter == "Semua" || order.status == selectedFilter
+
+            matchesSearch && matchesFilter
+        }
+    }
+
+    // Statistics
+    val totalCount = orders.size
+    val awaitingCount = orders.count { it.status != "Selesai Dijemput" }
+    val completedCount = orders.count { it.status == "Selesai Dijemput" }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Stats Cards Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Total Orders Card
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Text(text = "Total Order", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(text = "$totalCount Pesanan", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = NeonCyan)
+                }
+            }
+
+            // Awaiting Card
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.weight(1.1f)
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Text(text = "Belum Dijemput", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(text = "$awaitingCount Paket", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = WarmOrange)
+                }
+            }
+
+            // Completed Card
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Text(text = "Selesai Pickup", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(text = "$completedCount Paket", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = SoftTeal)
+                }
+            }
+        }
+
+        // Search Bar & Filter Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Cari order ID, nama pembeli...", fontSize = 12.sp) },
+                leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                ),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+                    .testTag("orders_search_field")
+            )
+        }
+
+        // Filter chips list
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            val filters = listOf("Semua", "Menunggu Kurir", "Kurir Menuju Lokasi", "Selesai Dijemput")
+            filters.forEach { filter ->
+                val isSelected = selectedFilter == filter
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent)
+                        .border(
+                            width = 1.dp,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .clickable { selectedFilter = filter }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = filter,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        // Orders list
+        if (filteredOrders.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Tidak ada orderan ditemukan",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    fontSize = 13.sp
+                )
+            }
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                items(filteredOrders) { order ->
+                    OrderPickupItem(order = order, viewModel = viewModel)
                 }
             }
         }

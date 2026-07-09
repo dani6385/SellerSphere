@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -195,7 +196,7 @@ fun MainShell() {
             val items = listOf(
                 CustomNavigationItem("dasbor", "Dasbor", Icons.Default.Home, "nav_item_dasbor"),
                 CustomNavigationItem("barang", "Stok", Icons.Default.Category, "nav_item_barang"),
-                CustomNavigationItem("kasir", "Kasir", Icons.Default.ShoppingCart, "nav_item_kasir", isCentral = true),
+                CustomNavigationItem("kasir", "Transaksi", Icons.Default.Receipt, "nav_item_kasir", isCentral = true),
                 CustomNavigationItem("label", "Label", Icons.Default.QrCode, "nav_item_label"),
                 CustomNavigationItem("laporan_sync", "Laporan", Icons.Default.LocalShipping, "nav_item_laporan")
             )

@@ -25,6 +25,10 @@ jobs:
         # Ini akan mencari gradlew di folder utama (root)
         run: chmod +x gradlew
 
+      - name: Regenerate Gradle Wrapper
+        # Meregenerasi gradle-wrapper.jar asli dari runner untuk menghindari isu file korup di Git
+        run: gradle wrapper --gradle-version 9.3.1
+
       - name: Build with Gradle
         # Ini akan menjalankan perintah dari folder utama
         run: ./gradlew assembleRelease --no-daemon --parallel

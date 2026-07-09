@@ -1,1 +1,0 @@
-saya menulis ulang kode dengan pelan

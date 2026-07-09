@@ -1,0 +1,6 @@
+{
+  "name": "SS Seller Sphere",
+  "description": "Aplikasi manajemen stok, penjualan, analitik tren mingguan, pencetakan label, dan sinkronisasi real-time untuk pemilik bisnis kecil.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

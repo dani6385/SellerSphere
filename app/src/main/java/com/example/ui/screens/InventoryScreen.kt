@@ -1,113 +1,56 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.QrCode
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.example.data.model.Product
 import com.example.ui.theme.NeonCyan
-import com.example.ui.theme.RadiantRose
 import com.example.ui.theme.SoftTeal
 import com.example.ui.theme.WarmOrange
+import com.example.ui.theme.RadiantRose
 import com.example.ui.viewmodel.AppViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InventoryScreen(
     viewModel: AppViewModel,
     onNavigateToLabelPrinter: (Product) -> Unit
 ) {
     val products by viewModel.products.collectAsState()
-    val lowStockList by viewModel.lowStockProducts.collectAsState()
-
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("Semua") }
 
     // Dialog state
-    var showAddEditDialog by remember { mutableStateOf(false) }
+    var showAddDialog by remember { mutableStateOf(false) }
     var editingProduct by remember { mutableStateOf<Product?>(null) }
+    var productToDelete by remember { mutableStateOf<Product?>(null) }
 
-    // Form states
-    var prodName by remember { mutableStateOf("") }
-    var prodSku by remember { mutableStateOf("") }
-    var prodStock by remember { mutableStateOf("") }
-    var prodPurchasePrice by remember { mutableStateOf("") }
-    var prodSellingPrice by remember { mutableStateOf("") }
-    var prodCategory by remember { mutableStateOf("") }
-    var prodThreshold by remember { mutableStateOf("5") }
+    // CSV state
+    var showCsvDialog by remember { mutableStateOf(false) }
+    var csvInputText by remember { mutableStateOf("") }
 
-    // Categories list based on products + default
     val categories = remember(products) {
-        val list = products.map { it.category }.distinct().toMutableList()
-        if (!list.contains("Pakaian")) list.add("Pakaian")
-        if (!list.contains("Aksesoris")) list.add("Aksesoris")
-        if (!list.contains("Makanan")) list.add("Makanan")
-        if (!list.contains("Minuman")) list.add("Minuman")
-        list.add(0, "Semua")
-        list
+        listOf("Semua") + products.map { it.category }.distinct().filter { it.isNotBlank() }
     }
 
-    // Filtered products list
     val filteredProducts = remember(products, searchQuery, selectedCategory) {
         products.filter { p ->
             val matchesSearch = p.name.contains(searchQuery, ignoreCase = true) || p.sku.contains(searchQuery, ignoreCase = true)
@@ -116,81 +59,206 @@ fun InventoryScreen(
         }
     }
 
-    Scaffold(
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    editingProduct = null
-                    prodName = ""
-                    prodSku = ""
-                    prodStock = ""
-                    prodPurchasePrice = ""
-                    prodSellingPrice = ""
-                    prodCategory = "Umum"
-                    prodThreshold = "5"
-                    showAddEditDialog = true
-                },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.testTag("add_product_fab")
-            ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Tambah Barang")
-            }
-        }
-    ) { innerPadding ->
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Left Panel: Operations & Quick Add Button (30% width)
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp)
+                .weight(1.1f)
+                .fillMaxHeight(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Search bar
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder = { Text("Cari barang atau SKU...") },
-                leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("inventory_search_field")
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Categories horizontal scroll
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                items(categories) { cat ->
-                    val isSelected = cat == selectedCategory
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Manajemen Inventaris",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Kelola data produk, stok, harga, serta cetak label harga dan promo barcode secara mandiri.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+
+                    // Add Product Button
+                    Button(
+                        onClick = { showAddDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = NeonCyan, contentColor = Color.Black),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .testTag("add_product_trigger")
+                    ) {
+                        Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Tambah Barang", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+
+                    // Import/Export CSV Button
+                    OutlinedButton(
+                        onClick = { showCsvDialog = true },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonCyan),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.ImportExport, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Impor / Ekspor CSV", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+            }
+
+            // Statistics Summary Card
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Ringkasan Stok",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Total Jenis Produk", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("${products.size} Item", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = NeonCyan)
+                    }
+
+                    val totalStock = products.sumOf { it.stock }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Total Unit Tersedia", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("$totalStock Unit", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SoftTeal)
+                    }
+
+                    val lowStockCount = products.count { it.isLowStock }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Barang Stok Menipis", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            text = "$lowStockCount Item",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            color = if (lowStockCount > 0) WarmOrange else SoftTeal
+                        )
+                    }
+
+                    if (lowStockCount > 0) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(WarmOrange.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+                                .padding(10.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(imageVector = Icons.Default.Warning, contentDescription = null, tint = WarmOrange, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Ada $lowStockCount produk perlu re-stock segera!",
+                                    fontSize = 10.sp,
+                                    color = WarmOrange,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Right Panel: Search, Category Filters, and Products List (70% width)
+        Column(
+            modifier = Modifier
+                .weight(2.5f)
+                .fillMaxHeight(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Search and Category Selection Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Cari berdasarkan nama atau SKU...", fontSize = 12.sp) },
+                    leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .testTag("inventory_search_field")
+                )
+            }
+
+            // Category filter row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                categories.take(5).forEach { category ->
+                    val isSelected = selectedCategory == category
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
-                            .clickable { selectedCategory = cat }
-                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent)
+                            .border(
+                                width = 1.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .clickable { selectedCategory = category }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            text = cat,
-                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            fontSize = 12.sp
+                            text = category,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Products list
+            // Products List
             if (filteredProducts.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -198,52 +266,26 @@ fun InventoryScreen(
                         .weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.Default.Category,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.size(64.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Tidak Ada Barang",
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "Gunakan tombol + di bawah untuk menambahkan produk baru.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 32.dp)
-                        )
-                    }
+                    Text(
+                        text = "Tidak ada produk di dalam inventaris",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        fontSize = 13.sp
+                    )
                 }
             } else {
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.weight(1f)
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
                 ) {
-                    items(filteredProducts) { product ->
+                    items(filteredProducts, key = { it.id }) { product ->
                         ProductItemCard(
                             product = product,
                             viewModel = viewModel,
-                            onEdit = {
-                                editingProduct = product
-                                prodName = product.name
-                                prodSku = product.sku
-                                prodStock = product.stock.toString()
-                                prodPurchasePrice = product.purchasePrice.toInt().toString()
-                                prodSellingPrice = product.sellingPrice.toInt().toString()
-                                prodCategory = product.category
-                                prodThreshold = product.minStockThreshold.toString()
-                                showAddEditDialog = true
-                            },
-                            onDelete = {
-                                viewModel.deleteProduct(product)
-                            },
-                            onGenerateLabel = {
+                            onEdit = { editingProduct = product },
+                            onDelete = { productToDelete = product },
+                            onPrintLabel = {
                                 viewModel.selectProductForLabel(product)
                                 onNavigateToLabelPrinter(product)
                             }
@@ -254,213 +296,136 @@ fun InventoryScreen(
         }
     }
 
-    // Add / Edit Product Dialog
-    if (showAddEditDialog) {
-        Dialog(onDismissRequest = { showAddEditDialog = false }) {
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 16.dp)
-            ) {
-                LazyColumn(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+    // Add Product Dialog
+    if (showAddDialog) {
+        ProductFormDialog(
+            title = "Tambah Produk Baru",
+            onDismiss = { showAddDialog = false },
+            onSave = { name, sku, stock, purchase, sell, cat, threshold ->
+                viewModel.addProduct(name, sku, stock, purchase, sell, cat, threshold)
+                showAddDialog = false
+            }
+        )
+    }
+
+    // Edit Product Dialog
+    editingProduct?.let { product ->
+        ProductFormDialog(
+            title = "Ubah Produk",
+            product = product,
+            onDismiss = { editingProduct = null },
+            onSave = { name, sku, stock, purchase, sell, cat, threshold ->
+                viewModel.updateProduct(
+                    product.copy(
+                        name = name,
+                        sku = sku,
+                        stock = stock,
+                        purchasePrice = purchase,
+                        sellingPrice = sell,
+                        category = cat,
+                        minStockThreshold = threshold
+                    )
+                )
+                editingProduct = null
+            }
+        )
+    }
+
+    // Delete Confirmation Dialog
+    productToDelete?.let { product ->
+        AlertDialog(
+            onDismissRequest = { productToDelete = null },
+            icon = { Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = RadiantRose) },
+            title = { Text("Hapus Produk?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+            text = { Text("Apakah Anda yakin ingin menghapus '${product.name}'? Tindakan ini tidak dapat dibatalkan.", fontSize = 13.sp) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteProduct(product)
+                        productToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RadiantRose)
                 ) {
-                    item {
-                        Text(
-                            text = if (editingProduct == null) "Tambah Barang Baru" else "Edit Detail Barang",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
+                    Text("Hapus", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { productToDelete = null }) {
+                    Text("Batal")
+                }
+            }
+        )
+    }
 
-                    item {
-                        OutlinedTextField(
-                            value = prodName,
-                            onValueChange = { prodName = it },
-                            label = { Text("Nama Barang") },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("form_product_name")
-                        )
-                    }
+    // CSV Import / Export Dialog
+    if (showCsvDialog) {
+        AlertDialog(
+            onDismissRequest = { showCsvDialog = false },
+            title = { Text("Impor / Ekspor CSV Produk", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Format: Nama,SKU,Stok,HargaBeli,HargaJual,Kategori,Threshold",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
 
-                    item {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = prodSku,
-                                onValueChange = { prodSku = it },
-                                label = { Text("Kode SKU / Barcode") },
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("form_product_sku")
-                            )
+                    OutlinedTextField(
+                        value = csvInputText,
+                        onValueChange = { csvInputText = it },
+                        placeholder = { Text("Tempel data CSV di sini untuk impor...", fontSize = 12.sp) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp),
+                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                    )
 
-                            OutlinedTextField(
-                                value = prodCategory,
-                                onValueChange = { prodCategory = it },
-                                label = { Text("Kategori") },
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("form_product_category")
-                            )
-                        }
-                    }
-
-                    item {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = prodStock,
-                                onValueChange = { prodStock = it.filter { c -> c.isDigit() } },
-                                label = { Text("Jumlah Stok") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("form_product_stock")
-                            )
-
-                            OutlinedTextField(
-                                value = prodThreshold,
-                                onValueChange = { prodThreshold = it.filter { c -> c.isDigit() } },
-                                label = { Text("Batas Minim Stok") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("form_product_threshold")
-                            )
-                        }
-                    }
-
-                    item {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = prodPurchasePrice,
-                                onValueChange = { prodPurchasePrice = it.filter { c -> c.isDigit() } },
-                                label = { Text("Harga Beli") },
-                                prefix = { Text("Rp") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("form_product_purchase_price")
-                            )
-
-                            OutlinedTextField(
-                                value = prodSellingPrice,
-                                onValueChange = { prodSellingPrice = it.filter { c -> c.isDigit() } },
-                                label = { Text("Harga Jual") },
-                                prefix = { Text("Rp") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("form_product_selling_price")
-                            )
-                        }
-                    }
-
-                    item {
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                val csv = viewModel.exportProductsToCsv()
+                                csvInputText = csv
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = NeonCyan),
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Text(
-                                text = "Batal",
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier
-                                    .clickable { showAddEditDialog = false }
-                                    .padding(8.dp)
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Text(
-                                text = "Simpan",
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier
-                                    .clickable {
-                                        if (prodName.isNotBlank()) {
-                                            val stockVal = prodStock.toIntOrNull() ?: 0
-                                            val buyPrice = prodPurchasePrice.toDoubleOrNull() ?: 0.0
-                                            val sellPrice = prodSellingPrice.toDoubleOrNull() ?: 0.0
-                                            val limitVal = prodThreshold.toIntOrNull() ?: 5
-                                            val categoryVal = if (prodCategory.isBlank()) "Umum" else prodCategory
+                            Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Salin Ekspor", fontSize = 11.sp)
+                        }
 
-                                            val editProd = editingProduct
-                                            if (editProd == null) {
-                                                viewModel.addProduct(
-                                                    name = prodName,
-                                                    sku = prodSku,
-                                                    stock = stockVal,
-                                                    purchasePrice = buyPrice,
-                                                    sellingPrice = sellPrice,
-                                                    category = categoryVal,
-                                                    threshold = limitVal
-                                                )
-                                            } else {
-                                                viewModel.updateProduct(
-                                                    editProd.copy(
-                                                        name = prodName,
-                                                        sku = prodSku,
-                                                        stock = stockVal,
-                                                        purchasePrice = buyPrice,
-                                                        sellingPrice = sellPrice,
-                                                        category = categoryVal,
-                                                        minStockThreshold = limitVal
-                                                    )
-                                                )
-                                            }
-                                            showAddEditDialog = false
-                                        }
+                        Button(
+                            onClick = {
+                                if (csvInputText.isNotBlank()) {
+                                    val success = viewModel.importProductsFromCsv(csvInputText)
+                                    if (success) {
+                                        showCsvDialog = false
+                                        csvInputText = ""
                                     }
-                                    .padding(8.dp)
-                                    .testTag("save_product_form_button")
-                            )
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonCyan, contentColor = Color.Black),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(imageVector = Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Impor CSV", fontSize = 11.sp)
                         }
                     }
                 }
+            },
+            confirmButton = {
+                TextButton(onClick = { showCsvDialog = false }) {
+                    Text("Tutup", fontWeight = FontWeight.Bold)
+                }
             }
-        }
+        )
     }
 }
 
@@ -470,10 +435,14 @@ fun ProductItemCard(
     viewModel: AppViewModel,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onGenerateLabel: () -> Unit
+    onPrintLabel: () -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF131A2E)),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (product.isLowStock) WarmOrange.copy(alpha = 0.5f) else Color.Transparent
+        ),
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -484,137 +453,258 @@ fun ProductItemCard(
                 verticalAlignment = Alignment.Top
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = product.name,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        if (product.isLowStock) {
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Box(
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                                    .background(RadiantRose.copy(alpha = 0.2f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "Minim",
-                                    color = RadiantRose,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-
+                    Text(
+                        text = product.name,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color.White
+                    )
                     Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            color = NeonCyan.copy(alpha = 0.1f),
+                            contentColor = NeonCyan,
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = "SKU: ${product.sku}",
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            )
+                        }
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = if (product.sku.isBlank()) "Tanpa SKU" else product.sku,
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f))
-                                .padding(horizontal = 6.dp, vertical = 1.dp)
+                        Surface(
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            shape = RoundedCornerShape(4.dp)
                         ) {
                             Text(
                                 text = product.category,
-                                color = MaterialTheme.colorScheme.secondary,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.SemiBold
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                     }
                 }
 
-                Row {
-                    Icon(
-                        imageVector = Icons.Default.QrCode,
-                        contentDescription = "Label",
-                        tint = NeonCyan,
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clickable { onGenerateLabel() }
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clickable { onEdit() }
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Hapus",
-                        tint = RadiantRose,
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clickable { onDelete() }
-                    )
+                // Action Menu Icons
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = onPrintLabel,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Print, contentDescription = "Cetak Label", tint = NeonCyan, modifier = Modifier.size(16.dp))
+                    }
+                    IconButton(
+                        onClick = onEdit,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Edit, contentDescription = "Ubah", tint = SoftTeal, modifier = Modifier.size(16.dp))
+                    }
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Delete, contentDescription = "Hapus", tint = RadiantRose, modifier = Modifier.size(16.dp))
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-            Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-            Spacer(modifier = Modifier.height(8.dp))
+            Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // Price & Profit
                 Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = viewModel.formatRupiah(product.sellingPrice),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Jual",
+                            fontSize = 9.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Stok Barang",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                    Text(
-                        text = "${product.stock} Unit",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        color = if (product.isLowStock) RadiantRose else MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "Modal: ${viewModel.formatRupiah(product.purchasePrice)} • Untung: ${viewModel.formatRupiah(product.profitPerUnit)}",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                     )
                 }
 
-                Column {
-                    Text(
-                        text = "Harga Beli",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                    Text(
-                        text = viewModel.formatRupiah(product.purchasePrice),
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 13.sp
-                    )
-                }
-
+                // Stock status
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = "Harga Jual",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                    Text(
-                        text = viewModel.formatRupiah(product.sellingPrice),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        color = NeonCyan
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(if (product.isLowStock) WarmOrange else SoftTeal)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "${product.stock} Unit",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = if (product.isLowStock) WarmOrange else SoftTeal
+                        )
+                    }
+                    if (product.isLowStock) {
+                        Text(
+                            text = "Min: ${product.minStockThreshold} Unit",
+                            fontSize = 9.sp,
+                            color = WarmOrange
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProductFormDialog(
+    title: String,
+    product: Product? = null,
+    onDismiss: () -> Unit,
+    onSave: (String, String, Int, Double, Double, String, Int) -> Unit
+) {
+    var name by remember { mutableStateOf(product?.name ?: "") }
+    var sku by remember { mutableStateOf(product?.sku ?: "") }
+    var stockText by remember { mutableStateOf(product?.stock?.toString() ?: "") }
+    var purchaseText by remember { mutableStateOf(product?.purchasePrice?.toString() ?: "") }
+    var sellText by remember { mutableStateOf(product?.sellingPrice?.toString() ?: "") }
+    var category by remember { mutableStateOf(product?.category ?: "Umum") }
+    var thresholdText by remember { mutableStateOf(product?.minStockThreshold?.toString() ?: "5") }
+
+    var hasError by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = title, fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+        text = {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                item {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Nama Barang") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                item {
+                    OutlinedTextField(
+                        value = sku,
+                        onValueChange = { sku = it },
+                        label = { Text("SKU / Barcode") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            value = stockText,
+                            onValueChange = { stockText = it },
+                            label = { Text("Stok") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = thresholdText,
+                            onValueChange = { thresholdText = it },
+                            label = { Text("Min. Threshold") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            value = purchaseText,
+                            onValueChange = { purchaseText = it },
+                            label = { Text("Harga Beli") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = sellText,
+                            onValueChange = { sellText = it },
+                            label = { Text("Harga Jual") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                item {
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = { category = it },
+                        label = { Text("Kategori") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                if (hasError) {
+                    item {
+                        Text(
+                            text = "Silakan lengkapi semua data dengan format angka yang valid.",
+                            color = RadiantRose,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val stockVal = stockText.toIntOrNull()
+                    val purchaseVal = purchaseText.toDoubleOrNull()
+                    val sellVal = sellText.toDoubleOrNull()
+                    val thresholdVal = thresholdText.toIntOrNull() ?: 5
+
+                    if (name.isNotBlank() && stockVal != null && purchaseVal != null && sellVal != null) {
+                        onSave(name, sku, stockVal, purchaseVal, sellVal, category, thresholdVal)
+                    } else {
+                        hasError = true
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = NeonCyan, contentColor = Color.Black)
+            ) {
+                Text("Simpan", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Batal")
+            }
+        }
+    )
 }

@@ -333,8 +333,8 @@ fun DashboardScreen(
         // Daily Financial Summary Indicators (Adapted to SS Shopsphere Order Pickups)
         item {
             val todayOrders = remember(shopsphereOrders) { shopsphereOrders.filter { it.dayIndex == 6 } }
-            val awaitingPickupCount = remember(todayOrders) { todayOrders.count { it.status != "Selesai Dijemput" } }
-            val pickedUpCount = remember(todayOrders) { todayOrders.count { it.status == "Selesai Dijemput" } }
+            val awaitingPickupCount = remember(todayOrders) { todayOrders.count { it.status != "Selesai Diambil" } }
+            val pickedUpCount = remember(todayOrders) { todayOrders.count { it.status == "Selesai Diambil" } }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -355,14 +355,14 @@ fun DashboardScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.LocalShipping,
-                                    contentDescription = "Menunggu Pickup",
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = "Belum Diambil",
                                     tint = WarmOrange,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = "Menunggu Pickup", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
+                            Text(text = "Belum Diambil", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
@@ -390,13 +390,13 @@ fun DashboardScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = "Selesai Pickup",
+                                    contentDescription = "Selesai Diambil",
                                     tint = SoftTeal,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = "Selesai Pickup", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
+                            Text(text = "Selesai Diambil", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
@@ -419,12 +419,12 @@ fun DashboardScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Statistik Penjemputan Pesanan SS",
+                        text = "Statistik Pengambilan Pesanan Toko",
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
                     )
                     Text(
-                        text = "Ketuk hari untuk detail paket masuk & penjemputan Shopsphere",
+                        text = "Ketuk hari untuk detail paket masuk & pengambilan oleh pembeli",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
@@ -559,8 +559,8 @@ fun ShopsphereWeeklyOrderChart(orders: List<ShopsphereOrder>, viewModel: AppView
             val dayLabel = sdfLabel.format(checkCalendar.time)
 
             val dayOrders = orders.filter { it.dayIndex == i }
-            val completed = dayOrders.count { it.status == "Selesai Dijemput" }
-            val awaiting = dayOrders.count { it.status != "Selesai Dijemput" }
+            val completed = dayOrders.count { it.status == "Selesai Diambil" }
+            val awaiting = dayOrders.count { it.status != "Selesai Diambil" }
 
             list.add(Triple(dayLabel, dateStr, DayOrderStats(completed, awaiting)))
         }
@@ -583,11 +583,11 @@ fun ShopsphereWeeklyOrderChart(orders: List<ShopsphereOrder>, viewModel: AppView
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.size(10.dp).background(SoftTeal, RoundedCornerShape(2.dp)))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Selesai Dijemput", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Selesai Diambil", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.width(12.dp))
                 Box(modifier = Modifier.size(10.dp).background(WarmOrange, RoundedCornerShape(2.dp)))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Menunggu Pickup", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Belum Diambil", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             val selectedDayStats = daysData[selectedIndex].third
@@ -756,7 +756,7 @@ data class DayOrderStats(val completed: Int, val awaiting: Int) {
 
 @Composable
 fun OrderPickupItem(order: ShopsphereOrder, viewModel: AppViewModel) {
-    val isPickedUp = order.status == "Selesai Dijemput"
+    val isPickedUp = order.status == "Selesai Diambil"
     Card(
         colors = CardDefaults.cardColors(
             containerColor = if (isPickedUp) Color(0xFF0F172A).copy(alpha = 0.4f) else Color(0xFF1E293B)
@@ -787,13 +787,13 @@ fun OrderPickupItem(order: ShopsphereOrder, viewModel: AppViewModel) {
                 // Status Badge
                 Surface(
                     color = when (order.status) {
-                        "Selesai Dijemput" -> SoftTeal.copy(alpha = 0.15f)
-                        "Kurir Menuju Lokasi" -> NeonCyan.copy(alpha = 0.15f)
+                        "Selesai Diambil" -> SoftTeal.copy(alpha = 0.15f)
+                        "Siap Diambil" -> NeonCyan.copy(alpha = 0.15f)
                         else -> WarmOrange.copy(alpha = 0.15f)
                     },
                     contentColor = when (order.status) {
-                        "Selesai Dijemput" -> SoftTeal
-                        "Kurir Menuju Lokasi" -> NeonCyan
+                        "Selesai Diambil" -> SoftTeal
+                        "Siap Diambil" -> NeonCyan
                         else -> WarmOrange
                     },
                     shape = RoundedCornerShape(8.dp)
@@ -830,55 +830,105 @@ fun OrderPickupItem(order: ShopsphereOrder, viewModel: AppViewModel) {
 
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Kurir: ${order.courierName}",
+                text = "No. HP Pembeli: ${order.courierPhone}",
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
             )
 
-            // Action Buttons
-            if (!isPickedUp) {
+            // Packing Instruction Prompt
+            if (order.status == "Perlu Dipacking") {
                 Spacer(modifier = Modifier.height(10.dp))
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(WarmOrange.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Call Courier
-                    Button(
-                        onClick = { viewModel.callCourier(order.id) },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(1f).height(36.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.Call, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Hubungi", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = WarmOrange,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Silakan lakukan packing untuk pesanan ini.",
+                        fontSize = 11.sp,
+                        color = WarmOrange,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
 
-                    // Print Label / Resi
+            // Action Buttons
+            if (!isPickedUp) {
+                if (order.status == "Perlu Dipacking") {
+                    Spacer(modifier = Modifier.height(10.dp))
                     Button(
-                        onClick = { viewModel.printOrderLabel(order.id) },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        onClick = { viewModel.finishPacking(order.id) },
+                        colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(1.5f).height(36.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                        modifier = Modifier.fillMaxWidth().height(40.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.Print, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Cetak Resi", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = Color.Black
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Barang Selesai, Silakan Ambil",
+                            fontSize = 12.sp,
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
-
-                    // Confirm pickup
-                    Button(
-                        onClick = { viewModel.confirmOrderPickup(order.id) },
-                        colors = ButtonDefaults.buttonColors(containerColor = SoftTeal),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(2.5f).height(36.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                } else if (order.status == "Siap Diambil") {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.Black)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Konfirmasi Pickup", fontSize = 11.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                        // Call Courier
+                        Button(
+                            onClick = { viewModel.callCourier(order.id) },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1.3f).height(36.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Call, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Hubungi Pembeli", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+
+                        // Print Bill / Receipt / Nota
+                        Button(
+                            onClick = { viewModel.printOrderLabel(order.id) },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1.2f).height(36.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Print, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Cetak Nota", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+
+                        // Confirm pickup
+                        Button(
+                            onClick = { viewModel.confirmOrderPickup(order.id) },
+                            colors = ButtonDefaults.buttonColors(containerColor = SoftTeal),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1.8f).height(36.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.Black)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Konfirmasi Diambil", fontSize = 11.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }

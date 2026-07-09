@@ -3,66 +3,41 @@ package com.example.ui.screens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AddShoppingCart
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Payment
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Product
 import com.example.ui.theme.NeonCyan
-import com.example.ui.theme.RadiantRose
 import com.example.ui.theme.SoftTeal
 import com.example.ui.theme.WarmOrange
+import com.example.ui.theme.RadiantRose
 import com.example.ui.viewmodel.AppViewModel
+import com.example.ui.viewmodel.ShopsphereOrder
 
 @Composable
 fun TransactionScreen(viewModel: AppViewModel) {
@@ -86,7 +61,11 @@ fun TransactionScreen(viewModel: AppViewModel) {
                 .padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            val tabs = listOf("Kasir POS", "Orderan Masuk")
+            val pendingPackingCount = shopsphereOrders.count { it.status == "Perlu Dipacking" }
+            val tabs = listOf(
+                "Kasir POS",
+                if (pendingPackingCount > 0) "Orderan Masuk ($pendingPackingCount)" else "Orderan Masuk"
+            )
             tabs.forEachIndexed { index, title ->
                 val isSelected = activeTab == index
                 Box(
@@ -101,7 +80,7 @@ fun TransactionScreen(viewModel: AppViewModel) {
                 ) {
                     Text(
                         text = title,
-                        color = if (isSelected) com.example.ui.theme.SlateDarkBackground else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (isSelected) Color(0xFF090D1A) else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
                     )
@@ -112,6 +91,7 @@ fun TransactionScreen(viewModel: AppViewModel) {
         if (activeTab == 0) {
             var searchQuery by remember { mutableStateOf("") }
             var selectedPaymentMethod by remember { mutableStateOf("Tunai") } // Tunai, QRIS, Transfer
+            var showBottomSheet by remember { mutableStateOf(false) }
 
             // Filter available products
             val filteredProducts = remember(products, searchQuery) {
@@ -123,268 +103,520 @@ fun TransactionScreen(viewModel: AppViewModel) {
             val cartTotal = remember(cart) {
                 cart.entries.sumOf { (product, qty) -> product.sellingPrice * qty }
             }
+            val totalItems = remember(cart) { cart.values.sum() }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxSize(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            Box(
+                modifier = Modifier.fillMaxSize()
             ) {
-        // Left Side: Product Selector (60% width)
-        Column(
-            modifier = Modifier
-                .weight(1.2f)
-                .fillMaxHeight()
-        ) {
-            Text(
-                text = "Pilih Barang",
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Small search input
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder = { Text("Cari barang...", fontSize = 12.sp) },
-                leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .testTag("pos_search_field")
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            if (filteredProducts.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        text = "Barang tidak ditemukan",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        fontSize = 13.sp
-                    )
-                }
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    items(filteredProducts) { product ->
-                        val qtyInCart = cart[product] ?: 0
-                        ProductPosSelectorCard(
-                            product = product,
-                            qtyInCart = qtyInCart,
-                            onAdd = { viewModel.addToCart(product) },
-                            viewModel = viewModel
-                        )
-                    }
-                }
-            }
-        }
-
-        // Right Side: Cart Summary & Checkout (40% width)
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier
-                .weight(0.8f)
-                .fillMaxHeight()
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.ShoppingCart,
-                            contentDescription = null,
-                            tint = NeonCyan,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Keranjang",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
-                    }
-
-                    if (cart.isNotEmpty()) {
-                        Text(
-                            text = "Bersihkan",
-                            color = RadiantRose,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .clickable { viewModel.clearCart() }
-                                .testTag("pos_clear_cart_button")
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-                Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Cart items
-                if (cart.isEmpty()) {
-                    Box(
+                    // Search Bar
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Cari barang untuk dijual...", fontSize = 12.sp) },
+                        leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Default.AddShoppingCart,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                modifier = Modifier.size(40.dp)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Keranjang Kosong",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                            )
-                        }
-                    }
-                } else {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        items(cart.entries.toList()) { (product, qty) ->
-                            CartItemRow(
-                                product = product,
-                                qty = qty,
-                                onIncrease = { viewModel.addToCart(product) },
-                                onDecrease = { viewModel.removeFromCart(product) },
-                                viewModel = viewModel
-                            )
-                        }
-                    }
-                }
+                            .height(48.dp)
+                            .testTag("pos_search_field")
+                    )
 
-                Spacer(modifier = Modifier.height(12.dp))
-                Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Payment Method Selector
-                Text(
-                    text = "Metode Pembayaran",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    listOf("Tunai", "QRIS", "Transfer").forEach { method ->
-                        val isSelected = selectedPaymentMethod == method
+                    // Products Grid (Spans full width now!)
+                    if (filteredProducts.isEmpty()) {
                         Box(
                             modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent)
-                                .border(
-                                    width = 1.dp,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                                    shape = RoundedCornerShape(8.dp)
-                                )
-                                .clickable { selectedPaymentMethod = method }
-                                .padding(vertical = 8.dp),
+                                .fillMaxWidth()
+                                .weight(1f),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = method,
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp
+                                text = "Produk tidak ditemukan",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                fontSize = 13.sp
                             )
+                        }
+                    } else {
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(2),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(bottom = 80.dp), // Extra padding at bottom to make sure products aren't blocked by the floating bar
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        ) {
+                            items(filteredProducts) { product ->
+                                PosProductCard(
+                                    product = product,
+                                    cartQty = cart[product] ?: 0,
+                                    viewModel = viewModel
+                                )
+                            }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                // Beautiful, Interactive, Floating Bottom Cart Bar (with spring pop/bounce animation on content changes!)
+                val cartButtonScale = remember { androidx.compose.animation.core.Animatable(1f) }
 
-                // Total and checkout action
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Total:",
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        text = viewModel.formatRupiah(cartTotal),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        color = NeonCyan
-                    )
+                LaunchedEffect(totalItems) {
+                    if (totalItems > 0) {
+                        cartButtonScale.animateTo(
+                            targetValue = 1.08f,
+                            animationSpec = androidx.compose.animation.core.spring(
+                                dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                            )
+                        )
+                        cartButtonScale.animateTo(
+                            targetValue = 1.0f,
+                            animationSpec = androidx.compose.animation.core.spring(
+                                dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+                                stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+                            )
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Button(
-                    onClick = { viewModel.checkout(selectedPaymentMethod) },
-                    enabled = cart.isNotEmpty(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        disabledContainerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
-                    ),
-                    shape = RoundedCornerShape(10.dp),
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = cart.isNotEmpty(),
+                    enter = slideInVertically(
+                        initialOffsetY = { it },
+                        animationSpec = androidx.compose.animation.core.spring()
+                    ) + fadeIn(),
+                    exit = slideOutVertically(
+                        targetOffsetY = { it },
+                        animationSpec = androidx.compose.animation.core.spring()
+                    ) + fadeOut(),
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(44.dp)
-                        .testTag("pos_checkout_button")
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 8.dp)
+                        .graphicsLayer(
+                            scaleX = cartButtonScale.value,
+                            scaleY = cartButtonScale.value
+                        )
                 ) {
-                    Icon(imageVector = Icons.Default.Payment, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Bayar Sekarang", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF131A2E)),
+                        border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(64.dp)
+                            .clickable { showBottomSheet = true }
+                            .testTag("floating_cart_bar")
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // Dynamic badge showing item count
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(NeonCyan),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = totalItems.toString(),
+                                        color = Color.Black,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                }
+
+                                Column {
+                                    Text(
+                                        text = "Keranjang Belanja",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                    )
+                                    Text(
+                                        text = viewModel.formatRupiah(cartTotal),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = NeonCyan
+                                    )
+                                }
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(SoftTeal)
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = "Transaksi",
+                                    color = Color.Black,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.ArrowForward,
+                                    contentDescription = null,
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
-        }
-    }
+
+            // Beautiful Modal Bottom Sheet for Transaction Checkout Details
+            if (showBottomSheet) {
+                @OptIn(ExperimentalMaterial3Api::class)
+                ModalBottomSheet(
+                    onDismissRequest = { showBottomSheet = false },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    containerColor = Color(0xFF0F172A),
+                    dragHandle = { BottomSheetDefaults.DragHandle(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)) }
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(start = 20.dp, end = 20.dp, bottom = 24.dp, top = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.ShoppingCart,
+                                    contentDescription = null,
+                                    tint = NeonCyan,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Keranjang Belanja (${totalItems} Barang)",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = Color.White
+                                )
+                            }
+                            Text(
+                                text = "Hapus Semua",
+                                color = RadiantRose,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clickable {
+                                        viewModel.clearCart()
+                                        showBottomSheet = false
+                                    }
+                                    .testTag("clear_cart_button")
+                            )
+                        }
+
+                        Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 240.dp)
+                        ) {
+                            items(cart.entries.toList()) { (product, qty) ->
+                                CartItemRow(product = product, quantity = qty, viewModel = viewModel)
+                            }
+                        }
+
+                        Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+
+                        Text(
+                            text = "Metode Pembayaran",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val methods = listOf("Tunai", "QRIS", "Transfer")
+                            methods.forEach { method ->
+                                val isSelected = selectedPaymentMethod == method
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (isSelected) NeonCyan.copy(alpha = 0.15f) else Color.Transparent)
+                                        .border(
+                                            width = 1.dp,
+                                            color = if (isSelected) NeonCyan else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                            shape = RoundedCornerShape(10.dp)
+                                        )
+                                        .clickable { selectedPaymentMethod = method }
+                                        .padding(vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = method,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) NeonCyan else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Total Bayar",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = viewModel.formatRupiah(cartTotal),
+                                fontWeight = FontWeight.Black,
+                                fontSize = 20.sp,
+                                color = NeonCyan
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                showBottomSheet = false
+                                viewModel.checkout(selectedPaymentMethod)
+                            },
+                            enabled = cart.isNotEmpty(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = SoftTeal,
+                                contentColor = Color.Black,
+                                disabledContainerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .testTag("checkout_button")
+                        ) {
+                            Icon(imageVector = Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Bayar & Cetak Nota", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                    }
+                }
+            }
         } else {
+            // OrdersTabContent
             OrdersTabContent(viewModel = viewModel, orders = shopsphereOrders)
         }
     }
 }
 
 @Composable
-fun OrdersTabContent(viewModel: AppViewModel, orders: List<com.example.ui.viewmodel.ShopsphereOrder>) {
+fun PosProductCard(
+    product: Product,
+    cartQty: Int,
+    viewModel: AppViewModel
+) {
+    val isOutOfStock = product.stock <= 0
+    val scale = remember { androidx.compose.animation.core.Animatable(1f) }
+
+    LaunchedEffect(cartQty) {
+        if (cartQty > 0) {
+            scale.animateTo(
+                targetValue = 1.08f,
+                animationSpec = androidx.compose.animation.core.spring(
+                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                    stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                )
+            )
+            scale.animateTo(
+                targetValue = 1.0f,
+                animationSpec = androidx.compose.animation.core.spring(
+                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+                    stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+                )
+            )
+        }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF131A2E)),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer(
+                scaleX = scale.value,
+                scaleY = scale.value
+            )
+            .clickable(enabled = !isOutOfStock) { viewModel.addToCart(product) }
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = product.name,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = if (isOutOfStock) Color.White.copy(alpha = 0.5f) else Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "SKU: ${product.sku}",
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                }
+
+                if (cartQty > 0) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(NeonCyan),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = cartQty.toString(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color.Black
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = viewModel.formatRupiah(product.sellingPrice),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    color = NeonCyan
+                )
+
+                Text(
+                    text = if (isOutOfStock) "Habis" else "Stok: ${product.stock}",
+                    fontSize = 10.sp,
+                    color = if (isOutOfStock) RadiantRose else if (product.isLowStock) WarmOrange else SoftTeal,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun CartItemRow(
+    product: Product,
+    quantity: Int,
+    viewModel: AppViewModel
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF131A2E), RoundedCornerShape(8.dp))
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = product.name,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = viewModel.formatRupiah(product.sellingPrice * quantity),
+                fontSize = 10.sp,
+                color = NeonCyan,
+                fontWeight = FontWeight.Medium
+            )
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable { viewModel.removeFromCart(product) },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(imageVector = Icons.Default.Remove, contentDescription = "Kurang", tint = Color.White, modifier = Modifier.size(12.dp))
+            }
+
+            Text(
+                text = quantity.toString(),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable { viewModel.addToCart(product) },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(imageVector = Icons.Default.Add, contentDescription = "Tambah", tint = Color.White, modifier = Modifier.size(12.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun OrdersTabContent(viewModel: AppViewModel, orders: List<ShopsphereOrder>) {
     var searchQuery by remember { mutableStateOf("") }
-    var selectedFilter by remember { mutableStateOf("Semua") } // Semua, Menunggu Kurir, Kurir Menuju Lokasi, Selesai Dijemput
+    var selectedFilter by remember { mutableStateOf("Semua") } // Semua, Perlu Dipacking, Siap Diambil, Selesai Diambil
 
     // Filtered orders list
     val filteredOrders = remember(orders, searchQuery, selectedFilter) {
         orders.filter { order ->
             val matchesSearch = order.id.contains(searchQuery, ignoreCase = true) ||
                     order.customerName.contains(searchQuery, ignoreCase = true) ||
-                    order.productName.contains(searchQuery, ignoreCase = true) ||
-                    order.courierName.contains(searchQuery, ignoreCase = true)
+                    order.productName.contains(searchQuery, ignoreCase = true)
 
             val matchesFilter = selectedFilter == "Semua" || order.status == selectedFilter
 
@@ -394,8 +626,8 @@ fun OrdersTabContent(viewModel: AppViewModel, orders: List<com.example.ui.viewmo
 
     // Statistics
     val totalCount = orders.size
-    val awaitingCount = orders.count { it.status != "Selesai Dijemput" }
-    val completedCount = orders.count { it.status == "Selesai Dijemput" }
+    val packingCount = orders.count { it.status == "Perlu Dipacking" }
+    val completedCount = orders.count { it.status == "Selesai Diambil" }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Stats Cards Row
@@ -425,9 +657,9 @@ fun OrdersTabContent(viewModel: AppViewModel, orders: List<com.example.ui.viewmo
                 modifier = Modifier.weight(1.1f)
             ) {
                 Column(modifier = Modifier.padding(10.dp)) {
-                    Text(text = "Belum Dijemput", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
+                    Text(text = "Perlu Packing", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = "$awaitingCount Paket", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = WarmOrange)
+                    Text(text = "$packingCount Paket", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = WarmOrange)
                 }
             }
 
@@ -438,7 +670,7 @@ fun OrdersTabContent(viewModel: AppViewModel, orders: List<com.example.ui.viewmo
                 modifier = Modifier.weight(1f)
             ) {
                 Column(modifier = Modifier.padding(10.dp)) {
-                    Text(text = "Selesai Pickup", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
+                    Text(text = "Selesai Diambil", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(text = "$completedCount Paket", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = SoftTeal)
                 }
@@ -477,7 +709,7 @@ fun OrdersTabContent(viewModel: AppViewModel, orders: List<com.example.ui.viewmo
                 .padding(bottom = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            val filters = listOf("Semua", "Menunggu Kurir", "Kurir Menuju Lokasi", "Selesai Dijemput")
+            val filters = listOf("Semua", "Perlu Dipacking", "Siap Diambil", "Selesai Diambil")
             filters.forEach { filter ->
                 val isSelected = selectedFilter == filter
                 Box(
@@ -526,155 +758,6 @@ fun OrdersTabContent(viewModel: AppViewModel, orders: List<com.example.ui.viewmo
                 items(filteredOrders) { order ->
                     OrderPickupItem(order = order, viewModel = viewModel)
                 }
-            }
-        }
-    }
-}
-
-@Composable
-fun ProductPosSelectorCard(
-    product: Product,
-    qtyInCart: Int,
-    onAdd: () -> Unit,
-    viewModel: AppViewModel
-) {
-    val isOutOfStock = product.stock <= 0
-    val maxReached = qtyInCart >= product.stock
-
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = if (isOutOfStock) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant
-        ),
-        shape = RoundedCornerShape(10.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = !isOutOfStock && !maxReached) { onAdd() }
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = product.name,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Stok: ${product.stock}",
-                        fontSize = 10.sp,
-                        color = if (product.isLowStock) RadiantRose else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                    if (product.sku.isNotBlank()) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "• SKU: ${product.sku}",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        )
-                    }
-                }
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = viewModel.formatRupiah(product.sellingPrice),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    color = NeonCyan,
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (isOutOfStock || maxReached) MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                        )
-                        .clickable(enabled = !isOutOfStock && !maxReached) { onAdd() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Tambah",
-                        tint = if (isOutOfStock || maxReached) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun CartItemRow(
-    product: Product,
-    qty: Int,
-    onIncrease: () -> Unit,
-    onDecrease: () -> Unit,
-    viewModel: AppViewModel
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = product.name,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = "${viewModel.formatRupiah(product.sellingPrice)} x$qty",
-                fontSize = 10.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-            )
-        }
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), CircleShape)
-                    .clickable { onDecrease() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(imageVector = Icons.Default.Remove, contentDescription = "Kurang", modifier = Modifier.size(12.dp))
-            }
-
-            Text(
-                text = qty.toString(),
-                fontWeight = FontWeight.Bold,
-                fontSize = 12.sp
-            )
-
-            Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), CircleShape)
-                    .clickable { onIncrease() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Tambah", modifier = Modifier.size(12.dp))
             }
         }
     }

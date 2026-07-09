@@ -658,15 +658,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val amount = qty * 50000.0 // average price estimation
 
                 val status = if (day < 6) {
-                    "Selesai Dijemput"
+                    "Selesai Diambil"
                 } else {
                     // Today's orders have mixed status
                     when (o) {
-                        0 -> "Menunggu Kurir"
-                        1 -> "Kurir Menuju Lokasi"
-                        2 -> "Menunggu Kurir"
-                        3 -> "Selesai Dijemput"
-                        else -> "Menunggu Kurir"
+                        0 -> "Perlu Dipacking"
+                        1 -> "Siap Diambil"
+                        2 -> "Perlu Dipacking"
+                        3 -> "Selesai Diambil"
+                        else -> "Perlu Dipacking"
                     }
                 }
 
@@ -689,10 +689,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _shopsphereOrders.value = ordersList
     }
 
-    fun confirmOrderPickup(orderId: String) {
+    fun finishPacking(orderId: String) {
         val currentList = _shopsphereOrders.value.map { order ->
             if (order.id == orderId) {
-                order.copy(status = "Selesai Dijemput")
+                order.copy(status = "Siap Diambil")
             } else {
                 order
             }
@@ -701,8 +701,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val order = currentList.find { order -> order.id == orderId }
         order?.let {
             triggerNotification(
-                "Penjemputan Berhasil 📦",
-                "Pesanan ${it.id} (${it.productName}) telah dijemput oleh ${it.courierName}."
+                "Packing Selesai 📦",
+                "Pesanan ${it.id} selesai dipacking. Pembeli telah mendapatkan notifikasi untuk mengambil barang."
+            )
+        }
+    }
+
+    fun confirmOrderPickup(orderId: String) {
+        val currentList = _shopsphereOrders.value.map { order ->
+            if (order.id == orderId) {
+                order.copy(status = "Selesai Diambil")
+            } else {
+                order
+            }
+        }
+        _shopsphereOrders.value = currentList
+        val order = currentList.find { order -> order.id == orderId }
+        order?.let {
+            triggerNotification(
+                "Pengambilan Selesai 📦",
+                "Pesanan ${it.id} (${it.productName}) telah berhasil diambil oleh pembeli (${it.customerName})."
             )
         }
     }
@@ -711,8 +729,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val order = _shopsphereOrders.value.find { order -> order.id == orderId }
         order?.let {
             triggerNotification(
-                "Menghubungi Kurir 📞",
-                "Menghubungi ${it.courierName} (${it.courierPhone}) untuk penjemputan pesanan ${it.id}."
+                "Hubungi Pembeli 📞",
+                "Menghubungi pembeli ${it.customerName} (${it.courierPhone}) terkait pengambilan pesanan ${it.id}."
             )
         }
     }
@@ -726,8 +744,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 selectProductForLabel(matchedProd)
             }
             triggerNotification(
-                "Cetak Resi Sukses 🖨️",
-                "Resi pengiriman untuk order ${it.id} berhasil dicetak menggunakan printer thermal."
+                "Cetak Nota Sukses 🖨️",
+                "Nota belanja/struk untuk pesanan ${it.id} berhasil dicetak menggunakan printer thermal."
             )
         }
     }
@@ -743,5 +761,5 @@ data class ShopsphereOrder(
     val courierName: String,
     val courierPhone: String,
     val totalAmount: Double,
-    val status: String // "Menunggu Kurir", "Kurir Menuju Lokasi", "Selesai Dijemput"
+    val status: String // "Perlu Dipacking", "Siap Diambil", "Selesai Diambil"
 )

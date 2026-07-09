@@ -29,6 +29,10 @@ jobs:
         # Meregenerasi gradle-wrapper.jar asli dari runner untuk menghindari isu file korup di Git
         run: gradle wrapper --gradle-version 9.3.1
 
+      - name: Decode Debug Keystore
+        # Mendecode debug.keystore.base64 yang ada di repo ke debug.keystore agar bisa digunakan oleh Gradle
+        run: base64 -d debug.keystore.base64 > debug.keystore
+
       - name: Build with Gradle
         # Ini akan menjalankan perintah dari folder utama
         run: ./gradlew assembleRelease --no-daemon --parallel

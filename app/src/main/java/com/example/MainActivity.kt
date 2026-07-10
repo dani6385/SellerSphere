@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -73,6 +74,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.ui.screens.ChatScreen
 import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.InventoryScreen
 import com.example.ui.screens.LabelPrinterScreen
@@ -162,6 +164,7 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
 
     ModalNavigationDrawer(
         drawerState = drawerState,
+        gesturesEnabled = false,
         drawerContent = {
             ModalDrawerSheet(
                 drawerContainerColor = MaterialTheme.colorScheme.surface,
@@ -629,28 +632,6 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
                             titleContentColor = MaterialTheme.colorScheme.onSurface
                         ),
                         actions = {
-                            val isDarkTheme by viewModel.isDarkTheme.collectAsState()
-                            // Theme Toggle Button
-                            Box(
-                                modifier = Modifier
-                                    .padding(end = 12.dp)
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f))
-                                    .clickable {
-                                        viewModel.toggleDarkTheme()
-                                    }
-                                    .testTag("theme_toggle_button"),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
-                                    contentDescription = "Toggle Theme",
-                                    tint = if (isDarkTheme) NeonCyan else MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-
                             // Small mock notification hub button showing alerts count
                             val lowStockList by viewModel.lowStockProducts.collectAsState()
                             Box(
@@ -680,6 +661,31 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
                                 }
                             }
 
+                            // Chat Button right next to notification bell
+                            Box(
+                                modifier = Modifier
+                                    .padding(end = 12.dp)
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f))
+                                    .clickable {
+                                        navController.navigate("chat") {
+                                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
+                                    .testTag("app_chat_button"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Chat,
+                                    contentDescription = "Chat Asisten AI",
+                                    tint = NeonCyan,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
                             // Settings Button next to notification bell
                             Box(
                                 modifier = Modifier
@@ -706,7 +712,7 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
                 }
             },
             bottomBar = {
-                if (currentRoute != "notifikasi") {
+                if (currentRoute != "notifikasi" && currentRoute != "chat") {
                     val items = listOf(
                         CustomNavigationItem("dasbor", "Dasbor", Icons.Default.Home, "nav_item_dasbor"),
                         CustomNavigationItem("barang", "Stok", Icons.Default.Category, "nav_item_barang"),
@@ -875,6 +881,15 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
                                     launchSingleTop = true
                                     restoreState = true
                                 }
+                            }
+                        )
+                    }
+
+                    composable("chat") {
+                        ChatScreen(
+                            viewModel = viewModel,
+                            onNavigateBack = {
+                                navController.popBackStack()
                             }
                         )
                     }

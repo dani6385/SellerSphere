@@ -596,10 +596,12 @@ fun ProductItemCard(
     onShowQr: () -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(
+            containerColor = if (product.isLowStock) Color(0xFF281116) else MaterialTheme.colorScheme.surfaceVariant
+        ),
         border = BorderStroke(
             width = 1.dp,
-            color = if (product.isLowStock) WarmOrange.copy(alpha = 0.5f) else Color.Transparent
+            color = if (product.isLowStock) Color(0xFF991B1B) else Color.Transparent
         ),
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth()
@@ -660,7 +662,9 @@ fun ProductItemCard(
                         )
                     }
 
-                    Column {
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -683,34 +687,33 @@ fun ProductItemCard(
                             }
                         }
                         Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        // Kategori di bawah nama barang, rapi ke kiri
+                        Surface(
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.align(Alignment.Start)
                         ) {
-                            Surface(
-                                color = NeonCyan.copy(alpha = 0.1f),
-                                contentColor = NeonCyan,
-                                shape = RoundedCornerShape(4.dp)
-                            ) {
-                                Text(
-                                    text = "SKU: ${product.sku}",
-                                    fontSize = 10.sp,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                )
-                            }
-
-                            Surface(
-                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
-                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                shape = RoundedCornerShape(4.dp)
-                            ) {
-                                Text(
-                                    text = product.category,
-                                    fontSize = 10.sp,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
+                            Text(
+                                text = product.category,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        // SKU di bawah kategori, rapi ke kiri
+                        Surface(
+                            color = NeonCyan.copy(alpha = 0.1f),
+                            contentColor = NeonCyan,
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.align(Alignment.Start)
+                        ) {
+                            Text(
+                                text = "SKU: ${product.sku}",
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            )
                         }
                     }
                 }
@@ -813,7 +816,36 @@ fun ProductItemCard(
                         Text(
                             text = "Min: ${product.minStockThreshold} Unit",
                             fontSize = 9.sp,
-                            color = WarmOrange
+                            color = Color(0xFFFCA5A5)
+                        )
+                    }
+                }
+            }
+
+            if (product.isLowStock) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF38161A), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color(0xFFEF4444).copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                        .padding(10.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Peringatan: Stok hampir habis! Segera lakukan pengisian ulang barang.",
+                            fontSize = 11.sp,
+                            color = Color(0xFFFCA5A5),
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }

@@ -29,8 +29,18 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import androidx.compose.animation.core.*
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.Canvas
 import com.example.data.model.Product
 import com.example.ui.theme.NeonCyan
 import com.example.ui.theme.SoftTeal
@@ -94,6 +104,13 @@ fun TransactionScreen(viewModel: AppViewModel) {
             var selectedPaymentMethod by remember(defaultPayment) { mutableStateOf(defaultPayment) } // Tunai, QRIS, Transfer
             var showBottomSheet by remember { mutableStateOf(false) }
 
+            // Barcode scan states
+            var isScanningActive by remember { mutableStateOf(false) }
+            var lastScannedSku by remember { mutableStateOf("") }
+            var lastScanTimestamp by remember { mutableStateOf(0L) }
+            var scanFeedbackMessage by remember { mutableStateOf("") }
+            var scanFeedbackIsSuccess by remember { mutableStateOf(true) }
+
             // Filter available products
             val filteredProducts = remember(products, searchQuery) {
                 products.filter { p ->
@@ -113,22 +130,269 @@ fun TransactionScreen(viewModel: AppViewModel) {
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Search Bar
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        placeholder = { Text("Cari barang untuk dijual...", fontSize = 12.sp) },
-                        leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .testTag("pos_search_field")
-                    )
+                    // Search Bar and Scan Toggle Button Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text("Cari barang untuk dijual...", fontSize = 12.sp) },
+                            leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                                .testTag("pos_search_field")
+                        )
+
+                        IconButton(
+                            onClick = { isScanningActive = !isScanningActive },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(
+                                    if (isScanningActive) NeonCyan else MaterialTheme.colorScheme.surfaceVariant,
+                                    RoundedCornerShape(12.dp)
+                                )
+                                .testTag("toggle_scan_button")
+                        ) {
+                            Icon(
+                                imageVector = if (isScanningActive) Icons.Default.Close else Icons.Default.QrCode,
+                                contentDescription = "Scan Label / Barcode",
+                                tint = if (isScanningActive) Color.Black else NeonCyan
+                            )
+                        }
+                    }
+
+                    // Live Barcode Scanner Section
+                    AnimatedVisibility(visible = isScanningActive) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.4f))
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(Color.Red)
+                                        )
+                                        Text(
+                                            text = "Kamera Pindai Aktif",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                    
+                                    Text(
+                                        text = "Arahkan ke label produk",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                val context = LocalContext.current
+                                var hasCameraPermission by remember {
+                                    mutableStateOf(
+                                        ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                                    )
+                                }
+
+                                val permissionLauncher = rememberLauncherForActivityResult(
+                                    contract = ActivityResultContracts.RequestPermission()
+                                ) { isGranted ->
+                                    hasCameraPermission = isGranted
+                                }
+
+                                if (!hasCameraPermission) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(180.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(Color(0xFF0F172A))
+                                            .padding(16.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Warning,
+                                            contentDescription = null,
+                                            tint = Color.Yellow,
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = "Izin Kamera Dibutuhkan",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "Aplikasi memerlukan izin kamera untuk memindai label barang.",
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = TextAlign.Center
+                                        )
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Button(
+                                            onClick = {
+                                                permissionLauncher.launch(Manifest.permission.CAMERA)
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = SoftTeal),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Text("Berikan Izin Kamera", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(180.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(Color.Black),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CameraPreview(
+                                            modifier = Modifier.fillMaxSize(),
+                                            onBarcodeDetected = { scannedCode ->
+                                                val now = System.currentTimeMillis()
+                                                val cleaned = scannedCode.trim()
+                                                if (cleaned.isNotEmpty()) {
+                                                    if (cleaned != lastScannedSku || (now - lastScanTimestamp) > 2000L) {
+                                                        lastScannedSku = cleaned
+                                                        lastScanTimestamp = now
+                                                        
+                                                        val matchingProduct = products.find { it.sku.equals(cleaned, ignoreCase = true) }
+                                                        if (matchingProduct != null) {
+                                                            if (matchingProduct.stock > 0) {
+                                                                val currentQtyInCart = cart[matchingProduct] ?: 0
+                                                                if (currentQtyInCart + 1 <= matchingProduct.stock) {
+                                                                    viewModel.addToCart(matchingProduct)
+                                                                    scanFeedbackIsSuccess = true
+                                                                    scanFeedbackMessage = "Berhasil: ${matchingProduct.name} (+1)"
+                                                                    viewModel.triggerNotification("Barang Ditambahkan", "${matchingProduct.name} berhasil ditambahkan ke keranjang.")
+                                                                } else {
+                                                                    scanFeedbackIsSuccess = false
+                                                                    scanFeedbackMessage = "Gagal: Sisa stok tidak mencukupi."
+                                                                    viewModel.triggerNotification("Stok Tidak Mencukupi", "Tidak bisa menambah ${matchingProduct.name} lagi.")
+                                                                }
+                                                            } else {
+                                                                scanFeedbackIsSuccess = false
+                                                                scanFeedbackMessage = "Gagal: Stok ${matchingProduct.name} habis."
+                                                                viewModel.triggerNotification("Stok Habis", "Produk ${matchingProduct.name} kosong.")
+                                                            }
+                                                        } else {
+                                                            scanFeedbackIsSuccess = false
+                                                            scanFeedbackMessage = "Gagal: SKU '$cleaned' tidak ditemukan."
+                                                            viewModel.triggerNotification("Pindai Gagal", "SKU '$cleaned' tidak terdaftar.")
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        )
+
+                                        // Scanning overlay borders
+                                        Canvas(modifier = Modifier.fillMaxSize()) {
+                                            val strokeWidth = 3.dp.toPx()
+                                            val cornerLength = 20.dp.toPx()
+                                            val padding = 15.dp.toPx()
+                                            val rectSize = size.height - (padding * 2)
+                                            val left = (size.width - rectSize) / 2
+                                            val top = padding
+                                            val right = left + rectSize
+                                            val bottom = top + rectSize
+
+                                            // Top-Left
+                                            drawLine(color = NeonCyan, start = Offset(left, top), end = Offset(left + cornerLength, top), strokeWidth = strokeWidth)
+                                            drawLine(color = NeonCyan, start = Offset(left, top), end = Offset(left, top + cornerLength), strokeWidth = strokeWidth)
+
+                                            // Top-Right
+                                            drawLine(color = NeonCyan, start = Offset(right, top), end = Offset(right - cornerLength, top), strokeWidth = strokeWidth)
+                                            drawLine(color = NeonCyan, start = Offset(right, top), end = Offset(right, top + cornerLength), strokeWidth = strokeWidth)
+
+                                            // Bottom-Left
+                                            drawLine(color = NeonCyan, start = Offset(left, bottom), end = Offset(left + cornerLength, bottom), strokeWidth = strokeWidth)
+                                            drawLine(color = NeonCyan, start = Offset(left, bottom), end = Offset(left, bottom - cornerLength), strokeWidth = strokeWidth)
+
+                                            // Bottom-Right
+                                            drawLine(color = NeonCyan, start = Offset(right, bottom), end = Offset(right - cornerLength, bottom), strokeWidth = strokeWidth)
+                                            drawLine(color = NeonCyan, start = Offset(right, bottom), end = Offset(right, bottom - cornerLength), strokeWidth = strokeWidth)
+                                        }
+
+                                        // Moving laser line
+                                        val infiniteTransition = rememberInfiniteTransition(label = "laser")
+                                        val laserOffset by infiniteTransition.animateFloat(
+                                            initialValue = 0f,
+                                            targetValue = 160f,
+                                            animationSpec = infiniteRepeatable(
+                                                animation = tween(1500, easing = LinearEasing),
+                                                repeatMode = RepeatMode.Reverse
+                                            ),
+                                            label = "laser_anim"
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth(0.8f)
+                                                .height(2.dp)
+                                                .background(Color.Red)
+                                                .offset(y = (-80 + laserOffset.toInt()).dp)
+                                        )
+                                        
+                                        // Feedback Banner inside the scanner preview!
+                                        if (scanFeedbackMessage.isNotEmpty()) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .align(Alignment.BottomCenter)
+                                                    .fillMaxWidth()
+                                                    .background(if (scanFeedbackIsSuccess) SoftTeal.copy(alpha = 0.9f) else Color.Red.copy(alpha = 0.9f))
+                                                    .padding(vertical = 6.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = scanFeedbackMessage,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.Black
+                                                )
+                                            }
+                                            
+                                            // Automatically clear the feedback banner after a short delay
+                                            LaunchedEffect(scanFeedbackMessage) {
+                                                kotlinx.coroutines.delay(2000L)
+                                                scanFeedbackMessage = ""
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     // Products Grid (Spans full width now!)
                     if (filteredProducts.isEmpty()) {
@@ -464,7 +728,12 @@ fun PosProductCard(
     }
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isOutOfStock) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            else if (product.isLowStock) Color(0xFF281116)
+            else MaterialTheme.colorScheme.surfaceVariant
+        ),
+        border = if (product.isLowStock && !isOutOfStock) BorderStroke(1.dp, Color(0xFF991B1B)) else null,
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier
             .fillMaxWidth()

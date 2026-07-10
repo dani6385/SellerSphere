@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -164,7 +165,7 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
 
     ModalNavigationDrawer(
         drawerState = drawerState,
-        gesturesEnabled = false,
+        gesturesEnabled = drawerState.isOpen,
         drawerContent = {
             ModalDrawerSheet(
                 drawerContainerColor = MaterialTheme.colorScheme.surface,
@@ -208,18 +209,41 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
                                     contentScale = ContentScale.Crop
                                 )
                                 
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(NeonCyan.copy(alpha = 0.1f))
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text(
-                                        text = "PRO SELLER",
-                                        color = NeonCyan,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 10.sp
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(NeonCyan.copy(alpha = 0.1f))
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = "PRO SELLER",
+                                            color = NeonCyan,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 10.sp
+                                        )
+                                    }
+
+                                    IconButton(
+                                        onClick = {
+                                            scope.launch {
+                                                drawerState.close()
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .testTag("close_drawer_button")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Tutup Menu",
+                                            tint = NeonCyan,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                 }
                             }
                             
@@ -256,6 +280,53 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
                             color = NeonCyan,
                             modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
                         )
+
+                        // Menu Item 0: Kembali ke Dasbor Utama
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    scope.launch {
+                                        drawerState.close()
+                                    }
+                                    if (currentRoute != "dasbor") {
+                                        navController.navigate("dasbor") {
+                                            popUpTo(navController.graph.findStartDestination()?.id ?: 0) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
+                                },
+                            color = Color.Transparent
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Home,
+                                    contentDescription = null,
+                                    tint = NeonCyan,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "Kembali ke Dasbor Utama",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.ArrowForward,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
 
                         var isAccountInfoExpanded by remember { mutableStateOf(false) }
                         

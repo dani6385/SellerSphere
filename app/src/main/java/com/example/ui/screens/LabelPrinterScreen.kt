@@ -57,6 +57,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -207,26 +209,27 @@ fun LabelPrinterScreen(viewModel: AppViewModel) {
                             Text(text = "Template Desain", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 listOf("Minimalis Modern", "Diskon/Promo", "Grosir", "Barcode Klasik", "QR Code").forEach { temp ->
                                     val isSelected = selectedTemplate == temp
                                     Box(
                                         modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface)
-                                            .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface)
+                                            .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
                                             .clickable { viewModel.updateLabelTemplate(temp) }
-                                            .padding(vertical = 8.dp),
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            text = temp.substringBefore("/"),
+                                            text = temp,
                                             color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 9.sp
+                                            fontSize = 10.sp
                                         )
                                     }
                                 }
@@ -256,19 +259,20 @@ fun LabelPrinterScreen(viewModel: AppViewModel) {
                             Text(text = "Ukuran Kertas", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 listOf("50x30 mm", "40x30 mm", "30x20 mm").forEach { sz ->
                                     val isSelected = labelSize == sz
                                     Box(
                                         modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(if (isSelected) MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface)
-                                            .border(1.dp, if (isSelected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isSelected) MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface)
+                                            .border(1.dp, if (isSelected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
                                             .clickable { viewModel.updateLabelSize(sz) }
-                                            .padding(vertical = 8.dp),
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(text = sz, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (isSelected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)

@@ -95,117 +95,119 @@ fun ReportScreen(viewModel: AppViewModel) {
         selectedTransactionForInvoice = transactions.first()
     }
 
-    Row(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Left Side: Financial Aggregations & Logs (55% width)
-        Column(
-            modifier = Modifier
-                .weight(1.1f)
-                .fillMaxHeight(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = "Laporan Keuangan Otomatis",
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
-
-            // Monthly stats overview card
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                shape = RoundedCornerShape(14.dp),
+        // 1. Header & Performance Overview
+        item {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Text(
-                        text = "Ringkasan Performa Toko",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                Text(
+                    text = "Laporan Keuangan Otomatis",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                // Monthly stats overview card
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            text = "Ringkasan Performa Toko",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(text = "Total Omzet", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
-                            Text(text = viewModel.formatRupiah(totalSales), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(text = "Laba Bersih", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
-                            Text(text = viewModel.formatRupiah(totalProfit), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = SoftTeal)
-                        }
-                    }
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(text = "Total Pengeluaran (HPP)", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
-                            Text(text = viewModel.formatRupiah(totalExpenses), fontWeight = FontWeight.Medium, fontSize = 12.sp)
-                        }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(text = "Rata-rata Penjualan", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
-                            Text(text = viewModel.formatRupiah(averageTransactionVal), fontWeight = FontWeight.Medium, fontSize = 12.sp)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                val csv = viewModel.exportProductsToCsv()
-                                viewModel.triggerNotification("Excel Berhasil Diekspor", "Data produk berhasil diunduh ke file CSV Excel.")
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(32.dp)
-                                .testTag("export_excel_button")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Icon(imageVector = Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Excel Produk", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            Column {
+                                Text(text = "Total Omzet", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                Text(text = viewModel.formatRupiah(totalSales), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(text = "Laba Bersih", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                Text(text = viewModel.formatRupiah(totalProfit), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = SoftTeal)
+                            }
                         }
 
-                        Button(
-                            onClick = {
-                                val csv = viewModel.exportTransactionsToCsv()
-                                viewModel.triggerNotification("Laporan Terunduh", "Riwayat penjualan otomatis disimpan dalam format Excel CSV.")
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(32.dp)
-                                .testTag("export_transactions_button")
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Icon(imageVector = Icons.Default.Download, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Excel Transaksi", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            Column {
+                                Text(text = "Total Pengeluaran (HPP)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                Text(text = viewModel.formatRupiah(totalExpenses), fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(text = "Rata-rata Penjualan", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                Text(text = viewModel.formatRupiah(averageTransactionVal), fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    val csv = viewModel.exportProductsToCsv()
+                                    viewModel.triggerNotification("Excel Berhasil Diekspor", "Data produk berhasil diunduh ke file CSV Excel.")
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(38.dp)
+                                    .testTag("export_excel_button")
+                            ) {
+                                Icon(imageVector = Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Excel Produk", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Button(
+                                onClick = {
+                                    val csv = viewModel.exportTransactionsToCsv()
+                                    viewModel.triggerNotification("Laporan Terunduh", "Riwayat penjualan otomatis disimpan dalam format Excel CSV.")
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(38.dp)
+                                    .testTag("export_transactions_button")
+                            ) {
+                                Icon(imageVector = Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Excel Transaksi", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
             }
+        }
 
-            // Laporan Stok Menipis (PDF) Card
+        // 2. Low Stock PDF Report Card
+        item {
             val lowStockList by viewModel.lowStockProducts.collectAsState()
             val context = LocalContext.current
             val coroutineScope = rememberCoroutineScope()
@@ -330,7 +332,6 @@ fun ReportScreen(viewModel: AppViewModel) {
                                     coroutineScope.launch {
                                         pdfProgress = 0.0f
                                         withContext(Dispatchers.IO) {
-                                            // Simulate evaluation and processing on a background thread
                                             val stepTime = 200L
                                             kotlinx.coroutines.delay(stepTime)
                                             withContext(Dispatchers.Main) { pdfProgress = 0.2f }
@@ -387,206 +388,196 @@ fun ReportScreen(viewModel: AppViewModel) {
                     }
                 }
             }
+        }
 
-            // Transaction History list
-            Text(
-                text = "Riwayat Penjualan (${transactionCount})",
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp
-            )
-
-            if (transactions.isEmpty()) {
-                Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                    Text("Belum ada transaksi terekam", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), fontSize = 12.sp)
-                }
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.weight(1f)
+        // 3. Digital Invoice Printout Preview Card
+        item {
+            AnimatedVisibility(visible = selectedTransactionForInvoice != null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                        .padding(14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(transactions) { trans ->
-                        val isSelected = selectedTransactionForInvoice?.id == trans.id
-                        TransactionHistoryRow(
-                            transaction = trans,
-                            isSelected = isSelected,
-                            onSelect = { selectedTransactionForInvoice = trans },
-                            viewModel = viewModel
-                        )
+                    Text(
+                        text = "Lembar Nota Digital",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    // White Formal Print Sheet
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        shape = RoundedCornerShape(4.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(320.dp)
+                            .border(1.dp, Color.Black.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            val activeTrans = selectedTransactionForInvoice!!
+                            val formattedDate = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(Date(activeTrans.timestamp))
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                // Header
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                                    Text(
+                                        text = "SS SELLER SPHERE",
+                                        color = Color.Black,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Text(
+                                        text = "Nota Penjualan Resmi",
+                                        color = Color.Gray,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        textAlign = TextAlign.Center
+                                    )
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(text = "Trans: #${activeTrans.id}", color = Color.Black, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+                                        Text(text = formattedDate, color = Color.Black, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+                                    }
+                                }
+
+                                // Divider
+                                Divider(color = Color.Black, thickness = 1.dp, modifier = Modifier.padding(vertical = 4.dp))
+
+                                // Items representation
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text(text = "Item", color = Color.Black, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                        Text(text = "Total", color = Color.Black, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                    }
+
+                                    Divider(color = Color.Black.copy(alpha = 0.2f), thickness = 0.5.dp)
+
+                                    val itemsList = listOf(
+                                        Pair("Item SSphere Pro", activeTrans.totalAmount)
+                                    )
+
+                                    itemsList.forEach { (name, amt) ->
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text(
+                                                text = name,
+                                                color = Color.Black,
+                                                fontSize = 8.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.width(160.dp)
+                                            )
+                                            Text(text = viewModel.formatRupiah(amt), color = Color.Black, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+                                        }
+                                    }
+                                }
+
+                                // Divider
+                                Divider(color = Color.Black, thickness = 1.dp, modifier = Modifier.padding(vertical = 4.dp))
+
+                                // Footers with totals
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text(text = "Metode:", color = Color.Black, fontSize = 8.sp)
+                                        Text(text = activeTrans.paymentMethod, color = Color.Black, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                    }
+
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text(text = "Laba Bersih:", color = Color.Gray, fontSize = 8.sp)
+                                        Text(text = viewModel.formatRupiah(activeTrans.totalProfit), color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+                                    }
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(text = "TOTAL BAYAR:", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        Text(
+                                            text = viewModel.formatRupiah(activeTrans.totalAmount),
+                                            color = Color.Black,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Terima kasih atas kunjungan Anda!",
+                                        color = Color.Gray,
+                                        fontSize = 8.sp,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            viewModel.triggerNotification("PDF Laporan Diekspor", "PDF laporan untuk Transaksi #${selectedTransactionForInvoice?.id} berhasil disimpan.")
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .testTag("action_print_invoice_button")
+                    ) {
+                        Icon(imageVector = Icons.Default.ReceiptLong, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Cetak Nota / PDF", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
             }
         }
 
-        // Right Side: Digital Invoice Printout Preview Sheet (45% width)
-        Column(
-            modifier = Modifier
-                .weight(0.9f)
-                .fillMaxHeight(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
+        // 4. Section Header: Riwayat Penjualan
+        item {
             Text(
-                text = "Lembar Nota Digital",
+                text = "Riwayat Penjualan (${transactionCount})",
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
             )
-            Spacer(modifier = Modifier.height(12.dp))
+        }
 
-            // White Formal Print Sheet
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                shape = RoundedCornerShape(4.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                modifier = Modifier
-                    .width(220.dp)
-                    .weight(1f)
-                    .border(1.dp, Color.Black.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
-            ) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    if (selectedTransactionForInvoice == null) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(
-                                text = "Pilih transaksi\nuntuk melihat lembar nota",
-                                color = Color.Gray,
-                                fontSize = 11.sp,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    } else {
-                        val activeTrans = selectedTransactionForInvoice!!
-                        val formattedDate = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(Date(activeTrans.timestamp))
-
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(12.dp),
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            // Header
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    text = "SS SELLER SPHERE",
-                                    color = Color.Black,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center
-                                )
-                                Text(
-                                    text = "Nota Penjualan Resmi",
-                                    color = Color.Gray,
-                                    fontSize = 8.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    textAlign = TextAlign.Center
-                                )
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(text = "Trans: #${activeTrans.id}", color = Color.Black, fontSize = 7.sp, fontFamily = FontFamily.Monospace)
-                                    Text(text = formattedDate, color = Color.Black, fontSize = 7.sp, fontFamily = FontFamily.Monospace)
-                                }
-                            }
-
-                            // Divider
-                            Divider(color = Color.Black, thickness = 1.dp, modifier = Modifier.padding(vertical = 4.dp))
-
-                            // Items representation (we draw mock item details visually)
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(text = "Item", color = Color.Black, fontSize = 7.sp, fontWeight = FontWeight.Bold)
-                                    Text(text = "Total", color = Color.Black, fontSize = 7.sp, fontWeight = FontWeight.Bold)
-                                }
-
-                                Divider(color = Color.Black.copy(alpha = 0.2f), thickness = 0.5.dp)
-
-                                // Mock visual list of transaction items (since details are derived or standard)
-                                val itemsList = listOf(
-                                    Pair("Item SSphere Pro", activeTrans.totalAmount)
-                                )
-
-                                itemsList.forEach { (name, amt) ->
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text(
-                                            text = name,
-                                            color = Color.Black,
-                                            fontSize = 7.sp,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.width(110.dp)
-                                        )
-                                        Text(text = viewModel.formatRupiah(amt), color = Color.Black, fontSize = 7.sp, fontFamily = FontFamily.Monospace)
-                                    }
-                                }
-                            }
-
-                            // Divider
-                            Divider(color = Color.Black, thickness = 1.dp, modifier = Modifier.padding(vertical = 4.dp))
-
-                            // Footers with totals
-                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(text = "Metode:", color = Color.Black, fontSize = 8.sp)
-                                    Text(text = activeTrans.paymentMethod, color = Color.Black, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                                }
-
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(text = "Laba Bersih:", color = Color.Gray, fontSize = 8.sp)
-                                    Text(text = viewModel.formatRupiah(activeTrans.totalProfit), color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
-                                }
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(text = "TOTAL BAYAR:", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                    Text(
-                                        text = viewModel.formatRupiah(activeTrans.totalAmount),
-                                        color = Color.Black,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontFamily = FontFamily.Monospace
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Terima kasih atas kunjungan Anda!",
-                                    color = Color.Gray,
-                                    fontSize = 7.sp,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                        }
-                    }
+        // 5. Transaction History Rows
+        if (transactions.isEmpty()) {
+            item {
+                Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                    Text("Belum ada transaksi terekam", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), fontSize = 12.sp)
                 }
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Button(
-                onClick = {
-                    viewModel.triggerNotification("PDF Laporan Diekspor", "PDF laporan untuk Transaksi #${selectedTransactionForInvoice?.id} berhasil disimpan.")
-                },
-                enabled = selectedTransactionForInvoice != null,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier
-                    .width(220.dp)
-                    .height(40.dp)
-                    .testTag("action_print_invoice_button")
-            ) {
-                Icon(imageVector = Icons.Default.ReceiptLong, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Cetak Nota / PDF", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        } else {
+            items(transactions) { trans ->
+                val isSelected = selectedTransactionForInvoice?.id == trans.id
+                TransactionHistoryRow(
+                    transaction = trans,
+                    isSelected = isSelected,
+                    onSelect = { selectedTransactionForInvoice = trans },
+                    viewModel = viewModel
+                )
             }
         }
     }

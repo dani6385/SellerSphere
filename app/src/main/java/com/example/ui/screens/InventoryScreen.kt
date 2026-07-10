@@ -81,123 +81,299 @@ fun InventoryScreen(
         }
     }
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Left Panel: Operations & Quick Add Button (30% width)
-        Column(
+        var sortMenuExpanded by remember { mutableStateOf(false) }
+        val sortOptions = listOf(
+            "Alphabetical" to "Alphabetical",
+            "Stock Level (Low to High)" to "Stock Level (Low to High)",
+            "Price" to "Price"
+        )
+
+        // 1. Search Box at the very top
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            placeholder = { Text("Cari berdasarkan nama atau SKU...", fontSize = 13.sp) },
+            leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+            ),
             modifier = Modifier
-                .weight(1.1f)
-                .fillMaxHeight(),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .fillMaxWidth()
+                .height(52.dp)
+                .testTag("inventory_search_field")
+        )
+
+        // 2. Categories Horizontally Scrollable next to Sort Dropdown
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth()
+            // Horizontal scroll for categories
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = "Manajemen Inventaris",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Kelola data produk, stok, harga, serta cetak label harga dan promo barcode secara mandiri.",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-
-                    // Add Product Button
-                    Button(
-                        onClick = { showAddDialog = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = NeonCyan, contentColor = Color.Black),
-                        shape = RoundedCornerShape(10.dp),
+                categories.forEach { category ->
+                    val isSelected = selectedCategory == category
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .testTag("add_product_trigger")
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent)
+                            .border(
+                                width = 1.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .clickable { selectedCategory = category }
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Tambah Barang", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    }
-
-                    // Import/Export CSV Button
-                    OutlinedButton(
-                        onClick = { showCsvDialog = true },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonCyan),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.ImportExport, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Impor / Ekspor CSV", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(
+                            text = category,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
 
-            // Statistics Summary Card
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+            // Sort Dropdown Button
+            Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
+                OutlinedButton(
+                    onClick = { sortMenuExpanded = true },
+                    modifier = Modifier
+                        .height(38.dp)
+                        .testTag("inventory_sort_button"),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
                 ) {
-                    Text(
-                        text = "Ringkasan Stok",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface
+                    Icon(
+                        imageVector = Icons.Default.Sort,
+                        contentDescription = "Urutkan",
+                        modifier = Modifier.size(16.dp)
                     )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    val shortActiveLabel = when (selectedSortKey) {
+                        "Stock Level (Low to High)" -> "Stok"
+                        "Price" -> "Harga"
+                        else -> "A-Z"
+                    }
+                    Text(
+                        text = shortActiveLabel,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Icon(
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
 
+                DropdownMenu(
+                    expanded = sortMenuExpanded,
+                    onDismissRequest = { sortMenuExpanded = false },
+                    modifier = Modifier.testTag("inventory_sort_menu")
+                ) {
+                    sortOptions.forEach { (key, label) ->
+                        DropdownMenuItem(
+                            text = { Text(label, fontSize = 13.sp) },
+                            onClick = {
+                                selectedSortKey = key
+                                sortMenuExpanded = false
+                            },
+                            leadingIcon = {
+                                val icon = when (key) {
+                                    "Stock Level (Low to High)" -> Icons.Default.ImportExport
+                                    "Price" -> Icons.Default.MonetizationOn
+                                    else -> Icons.Default.Sort
+                                }
+                                Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
+                            },
+                            modifier = Modifier.testTag("sort_option_$key")
+                        )
+                    }
+                }
+            }
+        }
+
+        // 3. Main Body Scrollable Area (Unified LazyColumn)
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Header 1: Quick actions and Info Cards
+            item {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // Action Buttons Row (Add Product & Import CSV)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("Total Jenis Produk", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("${products.size} Item", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = NeonCyan)
+                        Button(
+                            onClick = { showAddDialog = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonCyan, contentColor = Color.Black),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .weight(1.3f)
+                                .height(44.dp)
+                                .testTag("add_product_trigger")
+                        ) {
+                            Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Tambah Barang", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = { showCsvDialog = true },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonCyan),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.ImportExport, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Impor/Ekspor", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
                     }
 
-                    val totalStock = products.sumOf { it.stock }
+                    // Stats Ringkasan & Estimasi Side-by-Side Cards
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text("Total Unit Tersedia", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("$totalStock Unit", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SoftTeal)
+                        // Ringkasan Stok Card
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = "Ringkasan Stok",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Jenis", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("${products.size} Item", fontWeight = FontWeight.Bold, fontSize = 10.sp, color = NeonCyan)
+                                }
+                                val totalStock = products.sumOf { it.stock }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Total", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("$totalStock Unit", fontWeight = FontWeight.Bold, fontSize = 10.sp, color = SoftTeal)
+                                }
+                                val lowStockCount = products.count { it.isLowStock }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Kritis", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(
+                                        text = "$lowStockCount Item",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp,
+                                        color = if (lowStockCount > 0) WarmOrange else SoftTeal
+                                    )
+                                }
+                            }
+                        }
+
+                        // Estimasi Nilai Card
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1.1f)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = "Estimasi Nilai",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                val totalRevenue = products.sumOf { it.sellingPrice * it.stock }
+                                val totalCost = products.sumOf { it.purchasePrice * it.stock }
+                                val potentialProfit = totalRevenue - totalCost
+
+                                Column {
+                                    Text(
+                                        text = "Pendapatan",
+                                        fontSize = 9.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = viewModel.formatRupiah(totalRevenue),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = NeonCyan,
+                                        modifier = Modifier.testTag("total_estimated_revenue_text")
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Modal", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(
+                                        text = viewModel.formatRupiah(totalCost),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Untung", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(
+                                        text = viewModel.formatRupiah(potentialProfit),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp,
+                                        color = if (potentialProfit >= 0) SoftTeal else RadiantRose
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     val lowStockCount = products.count { it.isLowStock }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Barang Stok Menipis", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(
-                            text = "$lowStockCount Item",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp,
-                            color = if (lowStockCount > 0) WarmOrange else SoftTeal
-                        )
-                    }
-
                     if (lowStockCount > 0) {
                         Box(
                             modifier = Modifier
@@ -210,7 +386,7 @@ fun InventoryScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = "Ada $lowStockCount produk perlu re-stock segera!",
-                                    fontSize = 10.sp,
+                                    fontSize = 11.sp,
                                     color = WarmOrange,
                                     fontWeight = FontWeight.Medium
                                 )
@@ -220,286 +396,46 @@ fun InventoryScreen(
                 }
             }
 
-            // Estimated Revenue Summary Card
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .testTag("revenue_summary_card")
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(SoftTeal.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.MonetizationOn,
-                                contentDescription = null,
-                                tint = SoftTeal,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        Text(
-                            text = "Estimasi Nilai Inventaris",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    val totalRevenue = products.sumOf { it.sellingPrice * it.stock }
-                    val totalCost = products.sumOf { it.purchasePrice * it.stock }
-                    val potentialProfit = totalRevenue - totalCost
-
-                    Column(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "Total Estimasi Pendapatan",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = viewModel.formatRupiah(totalRevenue),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp,
-                            color = NeonCyan,
-                            modifier = Modifier.testTag("total_estimated_revenue_text")
-                        )
-                    }
-
-                    Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("Estimasi Modal (Cost)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(
-                                text = viewModel.formatRupiah(totalCost),
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("Potensi Keuntungan", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(
-                                text = viewModel.formatRupiah(potentialProfit),
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 11.sp,
-                                color = if (potentialProfit >= 0) SoftTeal else RadiantRose
-                            )
-                        }
-                    }
-
-                    if (products.any { it.stock > 0 && it.sellingPrice == 0.0 }) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(WarmOrange.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
-                                .padding(8.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Warning,
-                                    contentDescription = null,
-                                    tint = WarmOrange,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Beberapa barang aktif belum diatur harga jualnya.",
-                                    fontSize = 9.sp,
-                                    color = WarmOrange,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Right Panel: Search, Category Filters, and Products List (70% width)
-        Column(
-            modifier = Modifier
-                .weight(2.5f)
-                .fillMaxHeight(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            var sortMenuExpanded by remember { mutableStateOf(false) }
-            val sortOptions = listOf(
-                "Alphabetical" to "Alphabetical",
-                "Stock Level (Low to High)" to "Stock Level (Low to High)",
-                "Price" to "Price"
-            )
-
-            // Search and Category Selection Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Cari berdasarkan nama atau SKU...", fontSize = 12.sp) },
-                    leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp)
-                        .testTag("inventory_search_field")
+            // Header 2: Product List Label
+            item {
+                Text(
+                    text = "Daftar Produk (${filteredProducts.size})",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
                 )
-
-                // Sort Dropdown Button
-                Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
-                    OutlinedButton(
-                        onClick = { sortMenuExpanded = true },
-                        modifier = Modifier
-                            .height(48.dp)
-                            .testTag("inventory_sort_button"),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.primary
-                        ),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Sort,
-                            contentDescription = "Urutkan",
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        val activeLabel = sortOptions.firstOrNull { it.first == selectedSortKey }?.second ?: "Alphabetical"
-                        Text(
-                            text = activeLabel,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Icon(
-                            imageVector = Icons.Default.ArrowDropDown,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-
-                    DropdownMenu(
-                        expanded = sortMenuExpanded,
-                        onDismissRequest = { sortMenuExpanded = false },
-                        modifier = Modifier.testTag("inventory_sort_menu")
-                    ) {
-                        sortOptions.forEach { (key, label) ->
-                            DropdownMenuItem(
-                                text = { Text(label, fontSize = 13.sp) },
-                                onClick = {
-                                    selectedSortKey = key
-                                    sortMenuExpanded = false
-                                },
-                                leadingIcon = {
-                                    val icon = when (key) {
-                                        "Stock Level (Low to High)" -> Icons.Default.ImportExport
-                                        "Price" -> Icons.Default.MonetizationOn
-                                        else -> Icons.Default.Sort
-                                    }
-                                    Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
-                                },
-                                modifier = Modifier.testTag("sort_option_$key")
-                            )
-                        }
-                    }
-                }
             }
 
-            // Category filter row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                categories.take(5).forEach { category ->
-                    val isSelected = selectedCategory == category
+            // List of Products
+            if (sortedProducts.isEmpty()) {
+                item {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent)
-                            .border(
-                                width = 1.dp,
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .clickable { selectedCategory = category }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .fillMaxWidth()
+                            .height(200.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = category,
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
+                            text = "Tidak ada produk di dalam inventaris",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            fontSize = 13.sp
                         )
                     }
-                }
-            }
-
-            // Products List
-            if (sortedProducts.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Tidak ada produk di dalam inventaris",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        fontSize = 13.sp
-                    )
                 }
             } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                ) {
-                    items(sortedProducts, key = { it.id }) { product ->
-                        ProductItemCard(
-                            product = product,
-                            viewModel = viewModel,
-                            onEdit = { editingProduct = product },
-                            onDelete = { productToDelete = product },
-                            onPrintLabel = {
-                                viewModel.selectProductForLabel(product)
-                                onNavigateToLabelPrinter(product)
-                            },
-                            onShowQr = { qrProduct = product }
-                        )
-                    }
+                items(sortedProducts, key = { it.id }) { product ->
+                    ProductItemCard(
+                        product = product,
+                        viewModel = viewModel,
+                        onEdit = { editingProduct = product },
+                        onDelete = { productToDelete = product },
+                        onPrintLabel = {
+                            viewModel.selectProductForLabel(product)
+                            onNavigateToLabelPrinter(product)
+                        },
+                        onShowQr = { qrProduct = product }
+                    )
                 }
             }
         }

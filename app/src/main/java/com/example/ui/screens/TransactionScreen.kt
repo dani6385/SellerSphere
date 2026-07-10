@@ -90,7 +90,8 @@ fun TransactionScreen(viewModel: AppViewModel) {
 
         if (activeTab == 0) {
             var searchQuery by remember { mutableStateOf("") }
-            var selectedPaymentMethod by remember { mutableStateOf("Tunai") } // Tunai, QRIS, Transfer
+            val defaultPayment by viewModel.defaultPaymentMethod.collectAsState()
+            var selectedPaymentMethod by remember(defaultPayment) { mutableStateOf(defaultPayment) } // Tunai, QRIS, Transfer
             var showBottomSheet by remember { mutableStateOf(false) }
 
             // Filter available products

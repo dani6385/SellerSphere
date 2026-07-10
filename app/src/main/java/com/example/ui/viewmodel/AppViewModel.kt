@@ -10,6 +10,15 @@ import com.example.data.model.SaleItem
 import com.example.data.model.SaleTransaction
 import com.example.data.model.SalesTarget
 import com.example.data.repository.AppRepository
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.Response
+import okhttp3.MediaType
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import com.squareup.moshi.Types
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -90,6 +99,85 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _isDarkTheme.value = newVal
         prefs.edit().putBoolean("is_dark_theme", newVal).apply()
     }
+
+    // --- Default Payment Method ---
+    private val _defaultPaymentMethod = MutableStateFlow(prefs.getString("default_payment_method", "Tunai") ?: "Tunai")
+    val defaultPaymentMethod: StateFlow<String> = _defaultPaymentMethod.asStateFlow()
+
+    fun updateDefaultPaymentMethod(method: String) {
+        _defaultPaymentMethod.value = method
+        prefs.edit().putString("default_payment_method", method).apply()
+        addSyncLog("Metode pembayaran default diubah ke: $method")
+    }
+
+    // --- Firebase Realtime Database Configuration ---
+    private val _rtdbUrl = MutableStateFlow(
+        prefs.getString("firebase_rtdb_url", "https://matrixsphere-c3de9-default-rtdb.asia-southeast1.firebasedatabase.app") 
+            ?: "https://matrixsphere-c3de9-default-rtdb.asia-southeast1.firebasedatabase.app"
+    )
+    val rtdbUrl = _rtdbUrl.asStateFlow()
+
+    private val _sellerSphereNode = MutableStateFlow(
+        prefs.getString("seller_sphere_node", "tokoa") ?: "tokoa"
+    )
+    val sellerSphereNode = _sellerSphereNode.asStateFlow()
+
+    private val _shopSphereNode = MutableStateFlow(
+        prefs.getString("shop_sphere_node", "akuna") ?: "akuna"
+    )
+    val shopSphereNode = _shopSphereNode.asStateFlow()
+
+    fun updateRtdbUrl(url: String) {
+        var cleanUrl = url.trim()
+        if (cleanUrl.endsWith("/")) {
+            cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1)
+        }
+        _rtdbUrl.value = cleanUrl
+        prefs.edit().putString("firebase_rtdb_url", cleanUrl).apply()
+        addSyncLog("URL RTDB diperbarui ke: $cleanUrl")
+        fetchOrdersFromRtdb()
+    }
+
+    fun updateSellerSphereNode(node: String) {
+        val cleanNode = node.trim().lowercase()
+        _sellerSphereNode.value = cleanNode
+        prefs.edit().putString("seller_sphere_node", cleanNode).apply()
+        addSyncLog("Node Seller Sphere diperbarui ke: $cleanNode")
+    }
+
+    fun updateShopSphereNode(node: String) {
+        val cleanNode = node.trim().lowercase()
+        _shopSphereNode.value = cleanNode
+        prefs.edit().putString("shop_sphere_node", cleanNode).apply()
+        addSyncLog("Node Shop Sphere diperbarui ke: $cleanNode")
+        fetchOrdersFromRtdb()
+    }
+
+    // OkHttp Client & Moshi for REST operations
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
+
+    private val moshi = Moshi.Builder()
+        .add(KotlinJsonAdapterFactory())
+        .build()
+
+    private val productListAdapter = moshi.adapter<List<Product>>(
+        Types.newParameterizedType(List::class.java, Product::class.java)
+    )
+    private val transactionListAdapter = moshi.adapter<List<SaleTransaction>>(
+        Types.newParameterizedType(List::class.java, SaleTransaction::class.java)
+    )
+    private val saleItemListAdapter = moshi.adapter<List<SaleItem>>(
+        Types.newParameterizedType(List::class.java, SaleItem::class.java)
+    )
+    private val targetListAdapter = moshi.adapter<List<SalesTarget>>(
+        Types.newParameterizedType(List::class.java, SalesTarget::class.java)
+    )
+    private val orderListAdapter = moshi.adapter<List<ShopsphereOrder>>(
+        Types.newParameterizedType(List::class.java, ShopsphereOrder::class.java)
+    )
 
     fun loadTodayTarget() {
         viewModelScope.launch {
@@ -200,6 +288,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
             // Clear the cart
             clearCart()
+            pushDataToRtdb()
             triggerNotification(
                 "Penjualan Berhasil",
                 "Transaksi #${transId} selesai. Total: ${formatRupiah(totalAmount)}"
@@ -263,6 +352,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 minStockThreshold = threshold
             )
             repository.insertProduct(product)
+            pushDataToRtdb()
             triggerNotification("Produk Ditambahkan", "Produk $name berhasil dimasukkan ke inventaris.")
             if (product.isLowStock) {
                 triggerNotification(
@@ -276,6 +366,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateProduct(product: Product) {
         viewModelScope.launch {
             repository.updateProduct(product)
+            pushDataToRtdb()
             triggerNotification("Produk Diperbarui", "Data ${product.name} telah disimpan.")
             if (product.isLowStock) {
                 triggerNotification(
@@ -289,6 +380,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteProduct(product: Product) {
         viewModelScope.launch {
             repository.deleteProduct(product)
+            pushDataToRtdb()
             triggerNotification("Produk Dihapus", "Produk ${product.name} berhasil dihapus.")
         }
     }
@@ -376,11 +468,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // --- Simulated Real-time Multi-Device Sync ---
+    // --- Live Real-time Multi-Device Sync (Firebase Realtime Database) ---
     private val _syncCode = MutableStateFlow("SPHERE-SELLER-7F2A")
     val syncCode: StateFlow<String> = _syncCode.asStateFlow()
 
-    private val _syncStatus = MutableStateFlow("Sinkronisasi Aktif (Otomatis)") // Terputus, Menghubungkan, Terhubung, Sinkronisasi Aktif (Otomatis)
+    private val _syncStatus = MutableStateFlow("Terhubung (Otomatis)") // Terputus, Menghubungkan, Terhubung, Sinkronisasi Aktif (Otomatis), Koneksi Bermasalah
     val syncStatus: StateFlow<String> = _syncStatus.asStateFlow()
 
     private val _isSyncing = MutableStateFlow(false)
@@ -388,10 +480,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _syncLogs = MutableStateFlow<List<String>>(
         listOf(
-            "Sesi sinkronisasi dimulai pada ${SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())}",
-            "Perangkat induk terhubung dengan cloud",
-            "Data 5 produk terunggah ke penyimpanan cloud aman",
-            "Mendengarkan perubahan real-time dari perangkat lain..."
+            "Sesi sinkronisasi Firebase RTDB aktif",
+            "Mendengarkan perubahan real-time dari cloud...",
+            "Gunakan layar Pengaturan Sinkronisasi untuk konfigurasi node."
         )
     )
     val syncLogs: StateFlow<List<String>> = _syncLogs.asStateFlow()
@@ -410,43 +501,367 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         addSyncLog("Kode sinkronisasi baru dihasilkan: ${_syncCode.value}")
     }
 
-    fun triggerManualSync() {
-        viewModelScope.launch {
-            _isSyncing.value = true
-            _syncStatus.value = "Menghubungkan ke Cloud..."
-            addSyncLog("Menghubungkan ke server Seller Sphere Cloud...")
-            kotlinx.coroutines.delay(1000)
-
-            _syncStatus.value = "Mengunduh Perubahan..."
-            addSyncLog("Membandingkan data lokal dengan cloud...")
-            kotlinx.coroutines.delay(1000)
-
-            // Let's add a random sample product from cloud if list is short to demonstrate real-time data flow
-            if (products.value.size < 10) {
-                val names = listOf("Kopi Robusta Premium", "Teh Hijau Organik", "Cokelat Susu 100g", "Minyak Goreng 1L", "Gula Pasir 1kg")
-                val category = listOf("Minuman", "Minuman", "Makanan", "Bahan Pokok", "Bahan Pokok")
-                val randIndex = (names.indices).random()
-                val newProd = Product(
-                    name = names[randIndex] + " (Cloud)",
-                    sku = "SKU-CLOUD-${(100..999).random()}",
-                    stock = (10..50).random(),
-                    purchasePrice = 12000.0,
-                    sellingPrice = 16500.0,
-                    category = category[randIndex],
-                    minStockThreshold = 5
-                )
-                repository.insertProduct(newProd)
-                addSyncLog("Data produk baru disinkronkan: ${newProd.name}")
+    fun fetchOrdersFromRtdb() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val url = "${rtdbUrl.value}/shop_sphere/${shopSphereNode.value}/orders.json"
+                val request = Request.Builder()
+                    .url(url)
+                    .get()
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val bodyString = response.body?.string()
+                        if (!bodyString.isNullOrBlank() && bodyString != "null") {
+                            val orders = orderListAdapter.fromJson(bodyString)
+                            if (orders != null) {
+                                _shopsphereOrders.value = orders
+                                addSyncLog("Berhasil mengunduh ${orders.size} pesanan dari RTDB.")
+                            }
+                        } else {
+                            addSyncLog("Node pesanan di RTDB kosong (${shopSphereNode.value}).")
+                        }
+                    } else {
+                        addSyncLog("Gagal mengunduh pesanan dari RTDB. Kode: ${response.code}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("AppViewModel", "Error fetching orders", e)
+                addSyncLog("Gagal memuat pesanan RTDB: ${e.localizedMessage}")
             }
-
-            _isSyncing.value = false
-            _syncStatus.value = "Sinkronisasi Aktif (Otomatis)"
-            addSyncLog("Sinkronisasi real-time berhasil diselesaikan. Semua data konsisten!")
-            triggerNotification("Sinkronisasi Selesai", "Data inventaris dan penjualan berhasil disinkronkan.")
         }
     }
 
-    private fun addSyncLog(message: String) {
+    fun uploadOrdersToRtdb(ordersList: List<ShopsphereOrder> = _shopsphereOrders.value) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val url = "${rtdbUrl.value}/shop_sphere/${shopSphereNode.value}/orders.json"
+                val json = orderListAdapter.toJson(ordersList)
+                val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+                val requestBody = RequestBody.create(mediaType, json)
+                val request = Request.Builder()
+                    .url(url)
+                    .put(requestBody)
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        addSyncLog("Perubahan status pesanan berhasil diunggah ke RTDB.")
+                    } else {
+                        addSyncLog("Gagal mengunggah status pesanan ke RTDB. Kode: ${response.code}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("AppViewModel", "Error uploading orders", e)
+                addSyncLog("Gagal mengunggah pesanan ke RTDB: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    fun pushDataToRtdb() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                _isSyncing.value = true
+                _syncStatus.value = "Mengunggah..."
+                addSyncLog("Memulai unggah data lokal ke Seller Sphere RTDB...")
+
+                val localProducts = repository.allProducts.first()
+                val localTransactions = repository.allTransactions.first()
+                val localSaleItems = repository.allSaleItems.first()
+                val localTargets = repository.allTargets.first()
+
+                val baseNodeUrl = "${rtdbUrl.value}/seller_sphere/${sellerSphereNode.value}"
+
+                addSyncLog("Mengunggah ${localProducts.size} produk...")
+                val prodJson = productListAdapter.toJson(localProducts)
+                uploadJsonNode("$baseNodeUrl/products.json", prodJson)
+
+                addSyncLog("Mengunggah ${localTransactions.size} transaksi...")
+                val transJson = transactionListAdapter.toJson(localTransactions)
+                uploadJsonNode("$baseNodeUrl/transactions.json", transJson)
+
+                addSyncLog("Mengunggah ${localSaleItems.size} detail item penjualan...")
+                val itemsJson = saleItemListAdapter.toJson(localSaleItems)
+                uploadJsonNode("$baseNodeUrl/sale_items.json", itemsJson)
+
+                addSyncLog("Mengunggah ${localTargets.size} target penjualan...")
+                val targetsJson = targetListAdapter.toJson(localTargets)
+                uploadJsonNode("$baseNodeUrl/targets.json", targetsJson)
+
+                addSyncLog("Semua data lokal berhasil diunggah ke cloud RTDB!")
+                _syncStatus.value = "Terhubung (Otomatis)"
+                triggerNotification("Unggah Sukses ☁️", "Data toko berhasil disimpan di RTDB.")
+            } catch (e: Exception) {
+                Log.e("AppViewModel", "Error pushing data", e)
+                addSyncLog("Gagal mengunggah data: ${e.localizedMessage}")
+                _syncStatus.value = "Koneksi Bermasalah"
+            } finally {
+                _isSyncing.value = false
+            }
+        }
+    }
+
+    fun pullDataFromRtdb() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                _isSyncing.value = true
+                _syncStatus.value = "Mengunduh..."
+                addSyncLog("Memulai unduh data dari Seller Sphere RTDB...")
+
+                val baseNodeUrl = "${rtdbUrl.value}/seller_sphere/${sellerSphereNode.value}"
+
+                addSyncLog("Mengunduh katalog produk...")
+                val productsJson = downloadJsonNode("$baseNodeUrl/products.json")
+                val productsList = if (!productsJson.isNullOrBlank() && productsJson != "null") {
+                    productListAdapter.fromJson(productsJson)
+                } else null
+
+                addSyncLog("Mengunduh rekap transaksi...")
+                val transJson = downloadJsonNode("$baseNodeUrl/transactions.json")
+                val transList = if (!transJson.isNullOrBlank() && transJson != "null") {
+                    transactionListAdapter.fromJson(transJson)
+                } else null
+
+                addSyncLog("Mengunduh rincian barang terjual...")
+                val itemsJson = downloadJsonNode("$baseNodeUrl/sale_items.json")
+                val itemsList = if (!itemsJson.isNullOrBlank() && itemsJson != "null") {
+                    saleItemListAdapter.fromJson(itemsJson)
+                } else null
+
+                addSyncLog("Mengunduh data target penjualan...")
+                val targetsJson = downloadJsonNode("$baseNodeUrl/targets.json")
+                val targetsList = if (!targetsJson.isNullOrBlank() && targetsJson != "null") {
+                    targetListAdapter.fromJson(targetsJson)
+                } else null
+
+                if (productsList == null && transList == null && itemsList == null && targetsList == null) {
+                    addSyncLog("Node RTDB kosong atau tidak ditemukan data sinkronisasi.")
+                    return@launch
+                }
+
+                addSyncLog("Pembersihan database lokal...")
+                val db = AppDatabase.getDatabase(getApplication())
+                db.clearAllTables()
+
+                addSyncLog("Mengisi database lokal dengan data cloud...")
+                productsList?.forEach { repository.insertProduct(it) }
+                transList?.forEach { repository.insertTransaction(it) }
+                itemsList?.forEach { repository.insertSaleItem(it) }
+                targetsList?.forEach { repository.insertTarget(it) }
+
+                addSyncLog("Pemuatan ulang data lokal...")
+                loadTodayTarget()
+
+                addSyncLog("Unduh dan Sinkronisasi Lokal sukses!")
+                _syncStatus.value = "Terhubung (Otomatis)"
+                triggerNotification("Unduh Sukses ☁️", "Database lokal berhasil dipulihkan dari RTDB.")
+            } catch (e: Exception) {
+                Log.e("AppViewModel", "Error pulling data", e)
+                addSyncLog("Gagal mengunduh data: ${e.localizedMessage}")
+                _syncStatus.value = "Koneksi Bermasalah"
+            } finally {
+                _isSyncing.value = false
+            }
+        }
+    }
+
+    private fun uploadJsonNode(url: String, json: String) {
+        val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+        val requestBody = RequestBody.create(mediaType, json)
+        val request = Request.Builder()
+            .url(url)
+            .put(requestBody)
+            .build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw Exception("Gagal menulis ke $url. Kode: ${response.code}")
+            }
+        }
+    }
+
+    private fun downloadJsonNode(url: String): String? {
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .build()
+        client.newCall(request).execute().use { response ->
+            if (response.isSuccessful) {
+                return response.body?.string()
+            } else if (response.code == 404) {
+                return null
+            } else {
+                throw Exception("Gagal membaca dari $url. Kode: ${response.code}")
+            }
+        }
+    }
+
+    fun initSampleDataInRtdb() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                _isSyncing.value = true
+                addSyncLog("Menginisialisasi data contoh ke RTDB...")
+
+                // Make sure we have local products first
+                val localProducts = repository.allProducts.first()
+                if (localProducts.isEmpty()) {
+                    seedInitialData()
+                    kotlinx.coroutines.delay(1000)
+                }
+
+                val products = repository.allProducts.first()
+                val transactions = repository.allTransactions.first()
+                val saleItems = repository.allSaleItems.first()
+                val targets = repository.allTargets.first()
+
+                val baseNodeUrl = "${rtdbUrl.value}/seller_sphere/${sellerSphereNode.value}"
+                uploadJsonNode("$baseNodeUrl/products.json", productListAdapter.toJson(products))
+                uploadJsonNode("$baseNodeUrl/transactions.json", transactionListAdapter.toJson(transactions))
+                uploadJsonNode("$baseNodeUrl/sale_items.json", saleItemListAdapter.toJson(saleItems))
+                uploadJsonNode("$baseNodeUrl/targets.json", targetListAdapter.toJson(targets))
+
+                addSyncLog("Membuat data pesanan contoh untuk Shop Sphere...")
+                val ordersList = mutableListOf<ShopsphereOrder>()
+                val productsNameList = listOf("Kemeja Flanel Slimfit", "Jeans Denim Premium", "Botol Minum Tumbler", "Sepatu Sneakers Klasik", "Kaos Polos Cotton 30s")
+                val customersList = listOf("Andi", "Siti", "Budi", "Dewi", "Eko", "Rina", "Doni", "Rian", "Yusuf", "Hendra")
+                val couriersList = listOf("Ahmad (Shopsphere Express)", "Yanto (J&T Express)", "Budiman (Shopsphere Express)", "Agus (SiCepat)", "Husein (Shopsphere Express)")
+                
+                val calendar = Calendar.getInstance()
+                for (day in 0..6) {
+                    calendar.set(Calendar.DAY_OF_WEEK, calendar.firstDayOfWeek + day)
+                    val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(calendar.time)
+                    val ordersCount = if (day == 6) 4 else (1..3).random()
+
+                    for (o in 0 until ordersCount) {
+                        val orderId = "ORD-${10000 + (day * 100) + o}"
+                        val prodName = productsNameList.random()
+                        val qty = (1..3).random()
+                        val custName = customersList.random()
+                        val courName = couriersList.random()
+                        val amount = qty * 45000.0
+                        val status = if (day < 6) "Selesai Diambil" else {
+                            when (o) {
+                                0 -> "Perlu Dipacking"
+                                1 -> "Siap Diambil"
+                                else -> "Perlu Dipacking"
+                            }
+                        }
+                        val verCode = (100000 + (orderId.hashCode() % 900000).let { if (it < 0) -it else it }).toString()
+
+                        ordersList.add(
+                            ShopsphereOrder(
+                                id = orderId,
+                                dateString = dateStr,
+                                dayIndex = day,
+                                productName = prodName,
+                                quantity = qty,
+                                customerName = custName,
+                                courierName = courName,
+                                courierPhone = "0812${(10000000..99999999).random()}",
+                                totalAmount = amount,
+                                status = status,
+                                verificationCode = verCode
+                            )
+                        )
+                    }
+                }
+
+                val ordersUrl = "${rtdbUrl.value}/shop_sphere/${shopSphereNode.value}/orders.json"
+                uploadJsonNode(ordersUrl, orderListAdapter.toJson(ordersList))
+
+                _shopsphereOrders.value = ordersList
+                addSyncLog("Inisialisasi Data Contoh Sukses! RTDB Anda sekarang memiliki ${ordersList.size} pesanan dan data stok.")
+                triggerNotification("Inisialisasi Sukses 🟢", "RTDB berhasil diisi dengan data contoh.")
+            } catch (e: Exception) {
+                Log.e("AppViewModel", "Error seeding RTDB", e)
+                addSyncLog("Inisialisasi RTDB Gagal: ${e.localizedMessage}")
+            } finally {
+                _isSyncing.value = false
+            }
+        }
+    }
+
+    fun triggerManualSync() {
+        viewModelScope.launch {
+            _isSyncing.value = true
+            _syncStatus.value = "Menghubungkan..."
+            addSyncLog("Menghubungkan ke Realtime Database: ${rtdbUrl.value}...")
+            
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val baseNodeUrl = "${rtdbUrl.value}/seller_sphere/${sellerSphereNode.value}"
+                    
+                    addSyncLog("Mengunduh data toko dari node ${sellerSphereNode.value}...")
+                    val productsJson = downloadJsonNode("$baseNodeUrl/products.json")
+                    val productsList = if (!productsJson.isNullOrBlank() && productsJson != "null") {
+                        productListAdapter.fromJson(productsJson)
+                    } else null
+
+                    val transJson = downloadJsonNode("$baseNodeUrl/transactions.json")
+                    val transList = if (!transJson.isNullOrBlank() && transJson != "null") {
+                        transactionListAdapter.fromJson(transJson)
+                    } else null
+
+                    val itemsJson = downloadJsonNode("$baseNodeUrl/sale_items.json")
+                    val itemsList = if (!itemsJson.isNullOrBlank() && itemsJson != "null") {
+                        saleItemListAdapter.fromJson(itemsJson)
+                    } else null
+
+                    val targetsJson = downloadJsonNode("$baseNodeUrl/targets.json")
+                    val targetsList = if (!targetsJson.isNullOrBlank() && targetsJson != "null") {
+                        targetListAdapter.fromJson(targetsJson)
+                    } else null
+
+                    if (productsList != null || transList != null || itemsList != null || targetsList != null) {
+                        addSyncLog("Membaca data cloud. Sinkronisasi database lokal...")
+                        val db = AppDatabase.getDatabase(getApplication())
+                        db.clearAllTables()
+                        
+                        productsList?.forEach { repository.insertProduct(it) }
+                        transList?.forEach { repository.insertTransaction(it) }
+                        itemsList?.forEach { repository.insertSaleItem(it) }
+                        targetsList?.forEach { repository.insertTarget(it) }
+                        
+                        addSyncLog("Database lokal sinkron dengan cloud!")
+                    } else {
+                        addSyncLog("Node cloud kosong. Menginisialisasi data lokal ke cloud...")
+                        val localProducts = repository.allProducts.first()
+                        val localTransactions = repository.allTransactions.first()
+                        val localSaleItems = repository.allSaleItems.first()
+                        val localTargets = repository.allTargets.first()
+
+                        if (localProducts.isNotEmpty()) {
+                            uploadJsonNode("$baseNodeUrl/products.json", productListAdapter.toJson(localProducts))
+                            uploadJsonNode("$baseNodeUrl/transactions.json", transactionListAdapter.toJson(localTransactions))
+                            uploadJsonNode("$baseNodeUrl/sale_items.json", saleItemListAdapter.toJson(localSaleItems))
+                            uploadJsonNode("$baseNodeUrl/targets.json", targetListAdapter.toJson(localTargets))
+                            addSyncLog("Berhasil mengunggah data lokal ke cloud.")
+                        }
+                    }
+
+                    addSyncLog("Mengunduh data pesanan Shop Sphere...")
+                    val ordersUrl = "${rtdbUrl.value}/shop_sphere/${shopSphereNode.value}/orders.json"
+                    val ordersJson = downloadJsonNode(ordersUrl)
+                    if (!ordersJson.isNullOrBlank() && ordersJson != "null") {
+                        val orders = orderListAdapter.fromJson(ordersJson)
+                        if (orders != null) {
+                            _shopsphereOrders.value = orders
+                            addSyncLog("Berhasil memuat ${orders.size} pesanan.")
+                        }
+                    }
+
+                    _syncStatus.value = "Terhubung (Otomatis)"
+                    addSyncLog("Sinkronisasi dua arah selesai. Data sinkron.")
+                    triggerNotification("Sinkronisasi Selesai", "Semua data inventaris, transaksi, dan pesanan telah sinkron.")
+                } catch (e: Exception) {
+                    Log.e("AppViewModel", "Sync failed", e)
+                    addSyncLog("Koneksi gagal: ${e.localizedMessage}")
+                    _syncStatus.value = "Koneksi Bermasalah"
+                }
+            }
+            _isSyncing.value = false
+        }
+    }
+
+    fun addSyncLog(message: String) {
         val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
         val current = _syncLogs.value.toMutableList()
         current.add(0, "[$time] $message")
@@ -742,6 +1157,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         _shopsphereOrders.value = currentList
+        uploadOrdersToRtdb(currentList)
         val order = currentList.find { order -> order.id == orderId }
         order?.let {
             triggerNotification(
@@ -760,6 +1176,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         _shopsphereOrders.value = currentList
+        uploadOrdersToRtdb(currentList)
         val order = currentList.find { order -> order.id == orderId }
         order?.let {
             triggerNotification(

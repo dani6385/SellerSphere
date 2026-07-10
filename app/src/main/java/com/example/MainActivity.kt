@@ -1139,12 +1139,7 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
                                         )
                                         
                                         val dbUrl by viewModel.rtdbUrl.collectAsState()
-                                        val sellerNode by viewModel.sellerSphereNode.collectAsState()
-                                        val shopNode by viewModel.shopSphereNode.collectAsState()
-                                        
                                         var tempDbUrl by remember(dbUrl) { mutableStateOf(dbUrl) }
-                                        var tempSellerNode by remember(sellerNode) { mutableStateOf(sellerNode) }
-                                        var tempShopNode by remember(shopNode) { mutableStateOf(shopNode) }
                                         
                                         OutlinedTextField(
                                             value = tempDbUrl,
@@ -1159,40 +1154,11 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
                                             )
                                         )
                                         
-                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            OutlinedTextField(
-                                                value = tempSellerNode,
-                                                onValueChange = { tempSellerNode = it },
-                                                label = { Text("Node Utama") },
-                                                modifier = Modifier.weight(1f),
-                                                singleLine = true,
-                                                colors = OutlinedTextFieldDefaults.colors(
-                                                    focusedBorderColor = NeonCyan,
-                                                    focusedLabelColor = NeonCyan,
-                                                    cursorColor = NeonCyan
-                                                )
-                                            )
-                                            OutlinedTextField(
-                                                value = tempShopNode,
-                                                onValueChange = { tempShopNode = it },
-                                                label = { Text("Node Toko") },
-                                                modifier = Modifier.weight(1f),
-                                                singleLine = true,
-                                                colors = OutlinedTextFieldDefaults.colors(
-                                                    focusedBorderColor = NeonCyan,
-                                                    focusedLabelColor = NeonCyan,
-                                                    cursorColor = NeonCyan
-                                                )
-                                            )
-                                        }
-                                        
-                                        val hasChanges = tempDbUrl != dbUrl || tempSellerNode != sellerNode || tempShopNode != shopNode
+                                        val hasChanges = tempDbUrl != dbUrl
                                         
                                         Button(
                                             onClick = {
                                                 viewModel.updateRtdbUrl(tempDbUrl)
-                                                viewModel.updateSellerSphereNode(tempSellerNode)
-                                                viewModel.updateShopSphereNode(tempShopNode)
                                                 viewModel.addSyncLog("Koneksi Cloud diperbarui!")
                                             },
                                             enabled = hasChanges,

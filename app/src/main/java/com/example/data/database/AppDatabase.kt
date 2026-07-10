@@ -19,7 +19,7 @@ import com.example.data.model.SalesTarget
         SaleItem::class,
         SalesTarget::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

@@ -16,6 +16,9 @@ import okhttp3.RequestBody
 import okhttp3.Response
 import okhttp3.MediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import com.squareup.moshi.Types
@@ -117,13 +120,33 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     )
     val rtdbUrl = _rtdbUrl.asStateFlow()
 
+    private val _customStoreName = MutableStateFlow(
+        prefs.getString("custom_store_name", "SS Seller Sphere") ?: "SS Seller Sphere"
+    )
+    val customStoreName: StateFlow<String> = _customStoreName.asStateFlow()
+
+    val sanitizedStoreName: String
+        get() = _customStoreName.value.trim().lowercase()
+            .replace(Regex("[^a-z0-9_-]"), "-")
+            .replace(Regex("-+"), "-")
+            .trim('-')
+            .ifBlank { "unknown-store" }
+
     private val _sellerSphereNode = MutableStateFlow(
-        prefs.getString("seller_sphere_node", "tokoa") ?: "tokoa"
+        (_customStoreName.value.trim().lowercase()
+            .replace(Regex("[^a-z0-9_-]"), "-")
+            .replace(Regex("-+"), "-")
+            .trim('-')
+            .ifBlank { "unknown-store" })
     )
     val sellerSphereNode = _sellerSphereNode.asStateFlow()
 
     private val _shopSphereNode = MutableStateFlow(
-        prefs.getString("shop_sphere_node", "akuna") ?: "akuna"
+        (_customStoreName.value.trim().lowercase()
+            .replace(Regex("[^a-z0-9_-]"), "-")
+            .replace(Regex("-+"), "-")
+            .trim('-')
+            .ifBlank { "unknown-store" })
     )
     val shopSphereNode = _shopSphereNode.asStateFlow()
 
@@ -340,7 +363,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // --- Product Operations ---
-    fun addProduct(name: String, sku: String, stock: Int, purchasePrice: Double, sellingPrice: Double, category: String, threshold: Int) {
+    fun addProduct(name: String, sku: String, stock: Int, purchasePrice: Double, sellingPrice: Double, category: String, threshold: Int, imageUrls: String = "") {
         viewModelScope.launch {
             val product = Product(
                 name = name,
@@ -349,7 +372,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 purchasePrice = purchasePrice,
                 sellingPrice = sellingPrice,
                 category = category,
-                minStockThreshold = threshold
+                minStockThreshold = threshold,
+                imageUrls = imageUrls
             )
             repository.insertProduct(product)
             pushDataToRtdb()
@@ -385,15 +409,68 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun uploadImageToImgBB(
+        uri: android.net.Uri,
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val context = getApplication<Application>()
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val bytes = withContext(Dispatchers.IO) {
+                    inputStream?.readBytes()
+                }
+                inputStream?.close()
+
+                if (bytes == null) {
+                    onError("Gagal membaca file gambar.")
+                    return@launch
+                }
+
+                _isSyncing.value = true
+                val resultUrl = withContext(Dispatchers.IO) {
+                    val mediaType = "image/*".toMediaTypeOrNull()
+                    val requestBody = MultipartBody.Builder()
+                        .setType(MultipartBody.FORM)
+                        .addFormDataPart("image", "uploaded_image.jpg", RequestBody.create(mediaType, bytes))
+                        .build()
+
+                    val request = Request.Builder()
+                        .url("https://api.imgbb.com/1/upload?key=f601727fed32cf7a175833d01d8a10ff")
+                        .post(requestBody)
+                        .build()
+
+                    client.newCall(request).execute().use { response ->
+                        if (!response.isSuccessful) {
+                            throw Exception("Upload gagal dengan kode: ${response.code}")
+                        }
+                        val bodyString = response.body?.string() ?: throw Exception("Response body kosong")
+                        val adapter = moshi.adapter(ImgBbResponse::class.java)
+                        val res = adapter.fromJson(bodyString)
+                        if (res?.success == true && res.data?.url != null) {
+                            res.data.url
+                        } else {
+                            throw Exception("Respon API tidak sukses atau URL tidak ditemukan.")
+                        }
+                    }
+                }
+                _isSyncing.value = false
+                onSuccess(resultUrl)
+            } catch (e: Exception) {
+                Log.e("AppViewModel", "Upload image failed", e)
+                _isSyncing.value = false
+                onError(e.localizedMessage ?: "Terjadi kesalahan yang tidak diketahui.")
+            }
+        }
+    }
+
     // --- Labels Generator ---
     private val _selectedProductForLabel = MutableStateFlow<Product?>(null)
     val selectedProductForLabel: StateFlow<Product?> = _selectedProductForLabel.asStateFlow()
 
     private val _selectedTemplate = MutableStateFlow("Minimalis Modern") // Minimalis Modern, Diskon/Promo, Grosir, Barcode Klasik
     val selectedTemplate: StateFlow<String> = _selectedTemplate.asStateFlow()
-
-    private val _customStoreName = MutableStateFlow("SS Seller Sphere")
-    val customStoreName: StateFlow<String> = _customStoreName.asStateFlow()
 
     private val _promoDiscountPercent = MutableStateFlow(10)
     val promoDiscountPercent: StateFlow<Int> = _promoDiscountPercent.asStateFlow()
@@ -411,6 +488,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateCustomStoreName(name: String) {
         _customStoreName.value = name
+        prefs.edit().putString("custom_store_name", name).apply()
+        
+        val sanitized = sanitizedStoreName
+        _sellerSphereNode.value = sanitized
+        _shopSphereNode.value = sanitized
+        
+        addSyncLog("Nama Toko kustom diubah ke: $name (Node: $sanitized)")
+        fetchOrdersFromRtdb()
     }
 
     fun updatePromoDiscount(percent: Int) {
@@ -504,7 +589,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun fetchOrdersFromRtdb() {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                val url = "${rtdbUrl.value}/shop_sphere/${shopSphereNode.value}/orders.json"
+                val url = "${rtdbUrl.value}/shop-sphere/${shopSphereNode.value}/orders.json"
                 val request = Request.Builder()
                     .url(url)
                     .get()
@@ -535,7 +620,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun uploadOrdersToRtdb(ordersList: List<ShopsphereOrder> = _shopsphereOrders.value) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                val url = "${rtdbUrl.value}/shop_sphere/${shopSphereNode.value}/orders.json"
+                val url = "${rtdbUrl.value}/shop-sphere/${shopSphereNode.value}/orders.json"
                 val json = orderListAdapter.toJson(ordersList)
                 val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
                 val requestBody = RequestBody.create(mediaType, json)
@@ -569,7 +654,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val localSaleItems = repository.allSaleItems.first()
                 val localTargets = repository.allTargets.first()
 
-                val baseNodeUrl = "${rtdbUrl.value}/seller_sphere/${sellerSphereNode.value}"
+                val baseNodeUrl = "${rtdbUrl.value}/seller-sphere/${sellerSphereNode.value}"
 
                 addSyncLog("Mengunggah ${localProducts.size} produk...")
                 val prodJson = productListAdapter.toJson(localProducts)
@@ -607,7 +692,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _syncStatus.value = "Mengunduh..."
                 addSyncLog("Memulai unduh data dari Seller Sphere RTDB...")
 
-                val baseNodeUrl = "${rtdbUrl.value}/seller_sphere/${sellerSphereNode.value}"
+                val baseNodeUrl = "${rtdbUrl.value}/seller-sphere/${sellerSphereNode.value}"
 
                 addSyncLog("Mengunduh katalog produk...")
                 val productsJson = downloadJsonNode("$baseNodeUrl/products.json")
@@ -712,7 +797,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val saleItems = repository.allSaleItems.first()
                 val targets = repository.allTargets.first()
 
-                val baseNodeUrl = "${rtdbUrl.value}/seller_sphere/${sellerSphereNode.value}"
+                val baseNodeUrl = "${rtdbUrl.value}/seller-sphere/${sellerSphereNode.value}"
                 uploadJsonNode("$baseNodeUrl/products.json", productListAdapter.toJson(products))
                 uploadJsonNode("$baseNodeUrl/transactions.json", transactionListAdapter.toJson(transactions))
                 uploadJsonNode("$baseNodeUrl/sale_items.json", saleItemListAdapter.toJson(saleItems))
@@ -764,7 +849,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
 
-                val ordersUrl = "${rtdbUrl.value}/shop_sphere/${shopSphereNode.value}/orders.json"
+                val ordersUrl = "${rtdbUrl.value}/shop-sphere/${shopSphereNode.value}/orders.json"
                 uploadJsonNode(ordersUrl, orderListAdapter.toJson(ordersList))
 
                 _shopsphereOrders.value = ordersList
@@ -787,7 +872,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 try {
-                    val baseNodeUrl = "${rtdbUrl.value}/seller_sphere/${sellerSphereNode.value}"
+                    val baseNodeUrl = "${rtdbUrl.value}/seller-sphere/${sellerSphereNode.value}"
                     
                     addSyncLog("Mengunduh data toko dari node ${sellerSphereNode.value}...")
                     val productsJson = downloadJsonNode("$baseNodeUrl/products.json")
@@ -838,7 +923,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     addSyncLog("Mengunduh data pesanan Shop Sphere...")
-                    val ordersUrl = "${rtdbUrl.value}/shop_sphere/${shopSphereNode.value}/orders.json"
+                    val ordersUrl = "${rtdbUrl.value}/shop-sphere/${shopSphereNode.value}/orders.json"
                     val ordersJson = downloadJsonNode(ordersUrl)
                     if (!ordersJson.isNullOrBlank() && ordersJson != "null") {
                         val orders = orderListAdapter.fromJson(ordersJson)
@@ -1224,4 +1309,15 @@ data class ShopsphereOrder(
     val totalAmount: Double,
     val status: String, // "Perlu Dipacking", "Siap Diambil", "Selesai Diambil"
     val verificationCode: String
+)
+
+data class ImgBbResponse(
+    val data: ImgBbData?,
+    val success: Boolean,
+    val status: Int
+)
+
+data class ImgBbData(
+    val url: String?,
+    val display_url: String?
 )

@@ -19,6 +19,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -504,9 +509,10 @@ fun InventoryScreen(
     if (showAddDialog) {
         ProductFormDialog(
             title = "Tambah Produk Baru",
+            viewModel = viewModel,
             onDismiss = { showAddDialog = false },
-            onSave = { name, sku, stock, purchase, sell, cat, threshold ->
-                viewModel.addProduct(name, sku, stock, purchase, sell, cat, threshold)
+            onSave = { name, sku, stock, purchase, sell, cat, threshold, images ->
+                viewModel.addProduct(name, sku, stock, purchase, sell, cat, threshold, images)
                 showAddDialog = false
             }
         )
@@ -517,8 +523,9 @@ fun InventoryScreen(
         ProductFormDialog(
             title = "Ubah Produk",
             product = product,
+            viewModel = viewModel,
             onDismiss = { editingProduct = null },
-            onSave = { name, sku, stock, purchase, sell, cat, threshold ->
+            onSave = { name, sku, stock, purchase, sell, cat, threshold, images ->
                 viewModel.updateProduct(
                     product.copy(
                         name = name,
@@ -527,7 +534,8 @@ fun InventoryScreen(
                         purchasePrice = purchase,
                         sellingPrice = sell,
                         category = cat,
-                        minStockThreshold = threshold
+                        minStockThreshold = threshold,
+                        imageUrls = images
                     )
                 )
                 editingProduct = null
@@ -666,56 +674,107 @@ fun ProductItemCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = product.name,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = Color.White
-                        )
-                        if (product.isLowStock) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val firstImageUrl = remember(product.imageUrls) {
+                        product.imageUrls.split(",").firstOrNull { it.isNotBlank() }
+                    }
+                    var showGalleryDialog by remember { mutableStateOf(false) }
+
+                    if (firstImageUrl != null) {
+                        Box(
+                            modifier = Modifier
+                                .size(60.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                .clickable { showGalleryDialog = true }
+                        ) {
+                            AsyncImage(
+                                model = firstImageUrl,
+                                contentDescription = product.name,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(60.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.Error,
-                                contentDescription = "Peringatan Stok Menipis",
-                                tint = RadiantRose,
-                                modifier = Modifier
-                                    .size(16.dp)
-                                    .testTag("low_stock_warning_icon_${product.id}")
+                                imageVector = Icons.Default.ImageNotSupported,
+                                contentDescription = "Tidak ada foto",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(
-                            color = NeonCyan.copy(alpha = 0.1f),
-                            contentColor = NeonCyan,
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
-                            Text(
-                                text = "SKU: ${product.sku}",
-                                fontSize = 10.sp,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                            )
-                        }
 
-                        Surface(
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            shape = RoundedCornerShape(4.dp)
+                    if (showGalleryDialog && firstImageUrl != null) {
+                        ProductGalleryDialog(
+                            product = product,
+                            onDismiss = { showGalleryDialog = false }
+                        )
+                    }
+
+                    Column {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
-                                text = product.category,
-                                fontSize = 10.sp,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                text = product.name,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color.White
                             )
+                            if (product.isLowStock) {
+                                Icon(
+                                    imageVector = Icons.Default.Error,
+                                    contentDescription = "Peringatan Stok Menipis",
+                                    tint = RadiantRose,
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .testTag("low_stock_warning_icon_${product.id}")
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                color = NeonCyan.copy(alpha = 0.1f),
+                                contentColor = NeonCyan,
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = "SKU: ${product.sku}",
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                )
+                            }
+
+                            Surface(
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = product.category,
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -832,8 +891,9 @@ fun ProductItemCard(
 fun ProductFormDialog(
     title: String,
     product: Product? = null,
+    viewModel: AppViewModel,
     onDismiss: () -> Unit,
-    onSave: (String, String, Int, Double, Double, String, Int) -> Unit
+    onSave: (String, String, Int, Double, Double, String, Int, String) -> Unit
 ) {
     var name by remember { mutableStateOf(product?.name ?: "") }
     var sku by remember { mutableStateOf(product?.sku ?: "") }
@@ -842,6 +902,39 @@ fun ProductFormDialog(
     var sellText by remember { mutableStateOf(product?.sellingPrice?.toString() ?: "") }
     var category by remember { mutableStateOf(product?.category ?: "Umum") }
     var thresholdText by remember { mutableStateOf(product?.minStockThreshold?.toString() ?: "5") }
+
+    val initialUrls = remember(product) {
+        if (product?.imageUrls?.isNotBlank() == true) {
+            product.imageUrls.split(",").filter { it.isNotBlank() }
+        } else {
+            emptyList()
+        }
+    }
+    var imageUrlsList by remember { mutableStateOf(initialUrls) }
+    var isUploadingImage by remember { mutableStateOf(false) }
+    var uploadError by remember { mutableStateOf<String?>(null) }
+
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        uri?.let {
+            isUploadingImage = true
+            uploadError = null
+            viewModel.uploadImageToImgBB(
+                uri = it,
+                onSuccess = { uploadedUrl ->
+                    isUploadingImage = false
+                    if (imageUrlsList.size < 10) {
+                        imageUrlsList = imageUrlsList + uploadedUrl
+                    }
+                },
+                onError = { errorMsg ->
+                    isUploadingImage = false
+                    uploadError = errorMsg
+                }
+            )
+        }
+    }
 
     var hasError by remember { mutableStateOf(false) }
 
@@ -917,6 +1010,119 @@ fun ProductFormDialog(
                     )
                 }
 
+                // Add up to 10 product images/photos section
+                item {
+                    Text(
+                        text = "Foto Produk (Maksimal 10)",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Render existing images
+                        imageUrlsList.forEachIndexed { index, url ->
+                            Box(
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            ) {
+                                AsyncImage(
+                                    model = url,
+                                    contentDescription = "Foto Produk $index",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                )
+                                // Delete Button Overlay
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(4.dp)
+                                        .size(20.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color.Black.copy(alpha = 0.6f))
+                                        .clickable {
+                                            imageUrlsList = imageUrlsList.filterIndexed { i, _ -> i != index }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Hapus Foto",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Uploading placeholder
+                        if (isUploadingImage) {
+                            Box(
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    color = NeonCyan,
+                                    strokeWidth = 2.dp
+                                )
+                            }
+                        }
+
+                        // Add Photo Button (only if count is less than 10 and not currently uploading)
+                        if (imageUrlsList.size < 10 && !isUploadingImage) {
+                            Box(
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .border(1.dp, NeonCyan.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                    .clickable { launcher.launch("image/*") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AddAPhoto,
+                                        contentDescription = "Tambah Foto",
+                                        tint = NeonCyan,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "${imageUrlsList.size}/10",
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (uploadError != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Gagal mengunggah foto: $uploadError",
+                            color = RadiantRose,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
                 if (hasError) {
                     item {
                         Text(
@@ -938,7 +1144,8 @@ fun ProductFormDialog(
                     val thresholdVal = thresholdText.toIntOrNull() ?: 5
 
                     if (name.isNotBlank() && stockVal != null && purchaseVal != null && sellVal != null) {
-                        onSave(name, sku, stockVal, purchaseVal, sellVal, category, thresholdVal)
+                        val imageUrlsJoined = imageUrlsList.joinToString(",")
+                        onSave(name, sku, stockVal, purchaseVal, sellVal, category, thresholdVal, imageUrlsJoined)
                     } else {
                         hasError = true
                     }
@@ -1200,6 +1407,94 @@ fun ProductQrDialog(
         dismissButton = {
             TextButton(onClick = onDismiss, enabled = !isSimulatingPrint) {
                 Text("Tutup", color = Color.White)
+            }
+        },
+        shape = RoundedCornerShape(16.dp),
+        containerColor = Color(0xFF0B0F19)
+    )
+}
+
+@Composable
+fun ProductGalleryDialog(
+    product: Product,
+    onDismiss: () -> Unit
+) {
+    val urls = remember(product) {
+        product.imageUrls.split(",").filter { it.isNotBlank() }
+    }
+    var activeIndex by remember { mutableStateOf(0) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Foto Produk - ${product.name}",
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                color = Color.White
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Large Image Display
+                if (urls.isNotEmpty() && activeIndex in urls.indices) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(240.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.Black)
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AsyncImage(
+                            model = urls[activeIndex],
+                            contentDescription = "Active image",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                        )
+                    }
+                }
+
+                // Thumbnail row for navigation
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    urls.forEachIndexed { index, url ->
+                        val isSelected = index == activeIndex
+                        Box(
+                            modifier = Modifier
+                                .size(50.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .border(
+                                    width = if (isSelected) 2.dp else 1.dp,
+                                    color = if (isSelected) NeonCyan else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                                    shape = RoundedCornerShape(6.dp)
+                                )
+                                .clickable { activeIndex = index }
+                        ) {
+                            AsyncImage(
+                                model = url,
+                                contentDescription = "Thumbnail $index",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Tutup", fontWeight = FontWeight.Bold, color = NeonCyan)
             }
         },
         shape = RoundedCornerShape(16.dp),

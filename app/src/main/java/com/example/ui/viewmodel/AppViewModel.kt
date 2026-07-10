@@ -45,6 +45,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _shopsphereOrders = MutableStateFlow<List<ShopsphereOrder>>(emptyList())
     val shopsphereOrders: StateFlow<List<ShopsphereOrder>> = _shopsphereOrders.asStateFlow()
 
+    // --- Buyer Chats Tracking ---
+    private val _buyerChats = MutableStateFlow<List<BuyerChat>>(emptyList())
+    val buyerChats: StateFlow<List<BuyerChat>> = _buyerChats.asStateFlow()
+
+    val activeChatBuyerName = MutableStateFlow<String?>(null)
+
     init {
         val database = AppDatabase.getDatabase(application)
         repository = AppRepository(
@@ -55,6 +61,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // Initialize dummy data if empty to show beautiful analytics
         seedInitialData()
         initShopsphereOrders()
+        initBuyerChats()
     }
 
     // --- State Observables ---
@@ -1151,6 +1158,109 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         return format.format(amount).replace("Rp", "Rp ")
     }
 
+    fun initBuyerChats() {
+        val now = System.currentTimeMillis()
+        _buyerChats.value = listOf(
+            BuyerChat(
+                customerName = "Andi",
+                messages = listOf(
+                    BuyerMessage(senderName = "Andi", text = "Halo min, kemeja flanel slimfit size L ready?", timestamp = now - 3 * 3600 * 1000, isFromBuyer = true),
+                    BuyerMessage(senderName = "Seller", text = "Halo kak, ready ya. Silakan diorder.", timestamp = now - 2 * 3600 * 1000, isFromBuyer = false),
+                    BuyerMessage(senderName = "Andi", text = "Apakah barangnya sudah dikirim kak?", timestamp = now - 45 * 60 * 1000, isFromBuyer = true),
+                    BuyerMessage(senderName = "Andi", text = "Soalnya saya butuh cepat untuk acara besok.", timestamp = now - 44 * 60 * 1000, isFromBuyer = true)
+                ),
+                unreadCount = 2,
+                lastMessageTimestamp = now - 44 * 60 * 1000
+            ),
+            BuyerChat(
+                customerName = "Dewi",
+                messages = listOf(
+                    BuyerMessage(senderName = "Dewi", text = "Kak, botol minum tumbler saya bocor dikit. Apakah bisa ditukar?", timestamp = now - 15 * 60 * 1000, isFromBuyer = true)
+                ),
+                unreadCount = 1,
+                lastMessageTimestamp = now - 15 * 60 * 1000
+            ),
+            BuyerChat(
+                customerName = "Budi",
+                messages = listOf(
+                    BuyerMessage(senderName = "Budi", text = "Untuk sepatu sneakers klasik warnanya apa aja ya?", timestamp = now - 2 * 3600 * 1000, isFromBuyer = true),
+                    BuyerMessage(senderName = "Budi", text = "Bisa minta tolong fotokan aslinya?", timestamp = now - 2 * 3600 * 1000 + 30000, isFromBuyer = true)
+                ),
+                unreadCount = 2,
+                lastMessageTimestamp = now - 2 * 3600 * 1000 + 30000
+            ),
+            BuyerChat(
+                customerName = "Siti",
+                messages = listOf(
+                    BuyerMessage(senderName = "Siti", text = "Pagi sis, mau tanya jeans denim premium bahannya melar gak?", timestamp = now - 24 * 3600 * 1000, isFromBuyer = true),
+                    BuyerMessage(senderName = "Seller", text = "Sore kak, jeans kami semi-stretch nyaman dipakai sehari-hari.", timestamp = now - 20 * 3600 * 1000, isFromBuyer = false)
+                ),
+                unreadCount = 0,
+                lastMessageTimestamp = now - 20 * 3600 * 1000
+            )
+        )
+    }
+
+    fun markChatAsRead(customerName: String) {
+        _buyerChats.value = _buyerChats.value.map { chat ->
+            if (chat.customerName.equals(customerName, ignoreCase = true)) {
+                chat.copy(unreadCount = 0)
+            } else {
+                chat
+            }
+        }
+    }
+
+    fun sendMessageToBuyer(customerName: String, text: String) {
+        val now = System.currentTimeMillis()
+        val newMessage = BuyerMessage(senderName = "Seller", text = text, timestamp = now, isFromBuyer = false)
+        
+        _buyerChats.value = _buyerChats.value.map { chat ->
+            if (chat.customerName.equals(customerName, ignoreCase = true)) {
+                chat.copy(
+                    messages = chat.messages + newMessage,
+                    lastMessageTimestamp = now
+                )
+            } else {
+                chat
+            }
+        }
+
+        // Auto-reply simulation from buyer
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(1500L)
+            val buyerReplies = listOf(
+                "Baik kak, terima kasih banyak atas responnya! 😊",
+                "Siap kak, terima kasih infonya ya.",
+                "Ok min, nanti kalau senggang saya mampir.",
+                "Mantap! Terima kasih respon cepatnya min.",
+                "Ditunggu ya kak kabarnya."
+            )
+            val randomReply = buyerReplies.random()
+            val replyTime = System.currentTimeMillis()
+            val replyMsg = BuyerMessage(senderName = customerName, text = randomReply, timestamp = replyTime, isFromBuyer = true)
+
+            _buyerChats.value = _buyerChats.value.map { chat ->
+                if (chat.customerName.equals(customerName, ignoreCase = true)) {
+                    val isCurrentlyActive = activeChatBuyerName.value?.equals(customerName, ignoreCase = true) == true
+                    val newUnread = if (isCurrentlyActive) 0 else chat.unreadCount + 1
+                    
+                    if (!isCurrentlyActive) {
+                        triggerNotification("Pesan Baru: $customerName", randomReply)
+                    }
+                    
+                    chat.copy(
+                        messages = chat.messages + replyMsg,
+                        unreadCount = newUnread,
+                        lastMessageTimestamp = replyTime
+                    )
+                } else {
+                    chat
+                }
+            }
+        }
+    }
+
     private fun initShopsphereOrders() {
         val calendar = Calendar.getInstance()
         val sdfDate = SimpleDateFormat("dd/MM", Locale.getDefault())
@@ -1320,4 +1430,19 @@ data class ImgBbResponse(
 data class ImgBbData(
     val url: String?,
     val display_url: String?
+)
+
+data class BuyerMessage(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val senderName: String, // "Seller" or customerName
+    val text: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val isFromBuyer: Boolean
+)
+
+data class BuyerChat(
+    val customerName: String,
+    val messages: List<BuyerMessage>,
+    val unreadCount: Int,
+    val lastMessageTimestamp: Long
 )

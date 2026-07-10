@@ -733,6 +733,9 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
                             }
 
                             // Chat Button right next to notification bell
+                            val buyerChats by viewModel.buyerChats.collectAsState()
+                            val totalUnreadChats = buyerChats.sumOf { it.unreadCount }
+
                             Box(
                                 modifier = Modifier
                                     .padding(end = 12.dp)
@@ -755,6 +758,16 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
                                     tint = NeonCyan,
                                     modifier = Modifier.size(18.dp)
                                 )
+                                if (totalUnreadChats > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(top = 4.dp, end = 4.dp)
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.Red)
+                                            .align(Alignment.TopEnd)
+                                    )
+                                }
                             }
 
                             // Settings Button next to notification bell

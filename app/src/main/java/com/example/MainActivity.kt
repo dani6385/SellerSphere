@@ -83,6 +83,9 @@ import com.example.ui.screens.NotificationScreen
 import com.example.ui.screens.ReportScreen
 import com.example.ui.screens.SyncSettingsScreen
 import com.example.ui.screens.TransactionScreen
+import com.example.ui.screens.EditProfileScreen
+import com.example.ui.screens.StreamingScreen
+import com.example.ui.screens.TrendScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.NeonCyan
 import com.example.ui.theme.SoftTeal
@@ -118,6 +121,12 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Inventory
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Button
@@ -162,6 +171,9 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+
+    val ownerName by viewModel.ownerName.collectAsState()
+    val ownerEmail by viewModel.ownerEmail.collectAsState()
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -250,13 +262,13 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
                             Spacer(modifier = Modifier.height(16.dp))
                             
                             Text(
-                                text = "Dani",
+                                text = ownerName,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 20.sp,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "dani6385@gmail.com",
+                                text = ownerEmail,
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -328,6 +340,150 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
 
                         Spacer(modifier = Modifier.height(4.dp))
 
+                        // Menu Item: Edit Profil & Lokasi
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    scope.launch {
+                                        drawerState.close()
+                                    }
+                                    if (currentRoute != "edit_profile") {
+                                        navController.navigate("edit_profile") {
+                                            popUpTo(navController.graph.findStartDestination()?.id ?: 0) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
+                                }
+                                .testTag("drawer_edit_profile_btn"),
+                            color = Color.Transparent
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = null,
+                                    tint = NeonCyan,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "Edit Profil & Lokasi",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.ArrowForward,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Menu Item: Kelola Stok Barang
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    scope.launch {
+                                        drawerState.close()
+                                    }
+                                    if (currentRoute != "barang") {
+                                        navController.navigate("barang") {
+                                            popUpTo(navController.graph.findStartDestination()?.id ?: 0) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
+                                }
+                                .testTag("drawer_stok_btn"),
+                            color = Color.Transparent
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Inventory,
+                                    contentDescription = null,
+                                    tint = NeonCyan,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "Kelola Stok Barang",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.ArrowForward,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Menu Item: Cetak Label QR
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    scope.launch {
+                                        drawerState.close()
+                                    }
+                                    if (currentRoute != "label") {
+                                        navController.navigate("label") {
+                                            popUpTo(navController.graph.findStartDestination()?.id ?: 0) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
+                                }
+                                .testTag("drawer_label_btn"),
+                            color = Color.Transparent
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.QrCode,
+                                    contentDescription = null,
+                                    tint = NeonCyan,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "Cetak Label QR & Nota",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.ArrowForward,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
                         var isAccountInfoExpanded by remember { mutableStateOf(false) }
                         
                         // Menu Item 1: Detail Profil (Expandable)
@@ -374,9 +530,9 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
                                     .padding(12.dp)
                             ) {
                                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    ProfileDetailRow("Peran", "Owner & Administrator")
-                                    ProfileDetailRow("Wilayah", "Jakarta, Indonesia")
-                                    ProfileDetailRow("ID Pengguna", "USR-6385-DANI")
+                                    ProfileDetailRow("Nama Pemilik", ownerName)
+                                    ProfileDetailRow("Email Kontak", ownerEmail)
+                                    ProfileDetailRow("Alamat Toko", viewModel.pickupAddress.collectAsState().value)
                                     ProfileDetailRow("Status Akun", "Premium Aktif \u2728")
                                 }
                             }
@@ -798,11 +954,11 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
             bottomBar = {
                 if (currentRoute != "notifikasi" && currentRoute != "chat") {
                     val items = listOf(
-                        CustomNavigationItem("dasbor", "Dasbor", Icons.Default.Home, "nav_item_dasbor"),
-                        CustomNavigationItem("barang", "Stok", Icons.Default.Category, "nav_item_barang"),
+                        CustomNavigationItem("dasbor", "Home", Icons.Default.Home, "nav_item_dasbor"),
+                        CustomNavigationItem("streaming", "Streaming", Icons.Default.LiveTv, "nav_item_streaming"),
                         CustomNavigationItem("kasir", "Transaksi", Icons.Default.Receipt, "nav_item_kasir", isCentral = true),
-                        CustomNavigationItem("label", "Label", Icons.Default.QrCode, "nav_item_label"),
-                        CustomNavigationItem("laporan_sync", "Laporan", Icons.Default.LocalShipping, "nav_item_laporan")
+                        CustomNavigationItem("laporan_sync", "Laporan", Icons.Default.Assessment, "nav_item_laporan"),
+                        CustomNavigationItem("trend", "Trend", Icons.Default.TrendingUp, "nav_item_trend")
                     )
 
                     Box(
@@ -924,7 +1080,7 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
                                     launchSingleTop = true
                                     restoreState = true
                                 }
-                            }
+                            },
                             onNavigateToChat = { buyerName ->
                                 navController.navigate("chat") {
                                     popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -987,6 +1143,23 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
 
                     composable("chat") {
                         ChatScreen(
+                            viewModel = viewModel,
+                            onNavigateBack = {
+                                navController.popBackStack()
+                            }
+                        )
+                    }
+
+                    composable("streaming") {
+                        StreamingScreen(viewModel = viewModel)
+                    }
+
+                    composable("trend") {
+                        TrendScreen(viewModel = viewModel)
+                    }
+
+                    composable("edit_profile") {
+                        EditProfileScreen(
                             viewModel = viewModel,
                             onNavigateBack = {
                                 navController.popBackStack()

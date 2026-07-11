@@ -52,6 +52,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.IconButton
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.text.KeyboardOptions
@@ -827,24 +828,31 @@ fun OrderPickupItem(order: ShopsphereOrder, viewModel: AppViewModel, onNavigateT
                         fontSize = 14.sp,
                         color = if (isPickedUp) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         Text(
                             text = "Pembeli: ${order.customerName}",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Icon(
-                            imageVector = Icons.Default.Chat,
-                            contentDescription = "Chat Pembeli",
-                            tint = NeonCyan,
+                        IconButton(
+                            onClick = {
+                                viewModel.activeChatBuyerName.value = order.customerName
+                                onNavigateToChat(order.customerName)
+                            },
                             modifier = Modifier
-                                .size(14.dp)
-                                .clickable {
-                                    viewModel.activeChatBuyerName.value = order.customerName
-                                    onNavigateToChat(order.customerName)
-                                }
-                        )
+                                .size(28.dp)
+                                .testTag("chat_buyer_button_${order.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Chat,
+                                contentDescription = "Chat Pembeli ${order.customerName}",
+                                tint = NeonCyan,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
                     }
                 }
 

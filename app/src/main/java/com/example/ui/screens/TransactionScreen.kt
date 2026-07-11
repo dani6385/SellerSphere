@@ -50,7 +50,10 @@ import com.example.ui.viewmodel.AppViewModel
 import com.example.ui.viewmodel.ShopsphereOrder
 
 @Composable
-fun TransactionScreen(viewModel: AppViewModel) {
+fun TransactionScreen(
+    viewModel: AppViewModel,
+    onNavigateToChat: (String) -> Unit
+) {
     val products by viewModel.products.collectAsState()
     val cart by viewModel.cart.collectAsState()
     val shopsphereOrders by viewModel.shopsphereOrders.collectAsState()
@@ -694,7 +697,7 @@ fun TransactionScreen(viewModel: AppViewModel) {
             }
         } else {
             // OrdersTabContent
-            OrdersTabContent(viewModel = viewModel, orders = shopsphereOrders)
+            OrdersTabContent(viewModel = viewModel, orders = shopsphereOrders, onNavigateToChat = onNavigateToChat)
         }
     }
 }
@@ -877,7 +880,11 @@ fun CartItemRow(
 }
 
 @Composable
-fun OrdersTabContent(viewModel: AppViewModel, orders: List<ShopsphereOrder>) {
+fun OrdersTabContent(
+    viewModel: AppViewModel,
+    orders: List<ShopsphereOrder>,
+    onNavigateToChat: (String) -> Unit
+) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("Semua") } // Semua, Perlu Dipacking, Siap Diambil, Selesai Diambil
 
@@ -1026,7 +1033,7 @@ fun OrdersTabContent(viewModel: AppViewModel, orders: List<ShopsphereOrder>) {
                     .weight(1f)
             ) {
                 items(filteredOrders) { order ->
-                    OrderPickupItem(order = order, viewModel = viewModel)
+                    OrderPickupItem(order = order, viewModel = viewModel, onNavigateToChat = onNavigateToChat)
                 }
             }
         }

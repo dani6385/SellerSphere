@@ -132,6 +132,36 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     )
     val customStoreName: StateFlow<String> = _customStoreName.asStateFlow()
 
+    private val _ownerName = MutableStateFlow(
+        prefs.getString("owner_name", "Dani") ?: "Dani"
+    )
+    val ownerName: StateFlow<String> = _ownerName.asStateFlow()
+
+    private val _ownerEmail = MutableStateFlow(
+        prefs.getString("owner_email", "dani6385@gmail.com") ?: "dani6385@gmail.com"
+    )
+    val ownerEmail: StateFlow<String> = _ownerEmail.asStateFlow()
+
+    private val _pickupAddress = MutableStateFlow(
+        prefs.getString("pickup_address", "Jl. Kebon Jeruk No. 88, Jakarta Barat") ?: "Jl. Kebon Jeruk No. 88, Jakarta Barat"
+    )
+    val pickupAddress: StateFlow<String> = _pickupAddress.asStateFlow()
+
+    private val _pickupLatitude = MutableStateFlow(
+        prefs.getFloat("pickup_latitude", -6.1751f)
+    )
+    val pickupLatitude: StateFlow<Float> = _pickupLatitude.asStateFlow()
+
+    private val _pickupLongitude = MutableStateFlow(
+        prefs.getFloat("pickup_longitude", 106.8272f)
+    )
+    val pickupLongitude: StateFlow<Float> = _pickupLongitude.asStateFlow()
+
+    private val _pickupNotes = MutableStateFlow(
+        prefs.getString("pickup_notes", "Pagar hitam, di depan minimarket") ?: "Pagar hitam, di depan minimarket"
+    )
+    val pickupNotes: StateFlow<String> = _pickupNotes.asStateFlow()
+
     val sanitizedStoreName: String
         get() = _customStoreName.value.trim().lowercase()
             .replace(Regex("[^a-z0-9_-]"), "-")
@@ -503,6 +533,35 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         
         addSyncLog("Nama Toko kustom diubah ke: $name (Node: $sanitized)")
         fetchOrdersFromRtdb()
+    }
+
+    fun updateProfile(
+        name: String,
+        email: String,
+        storeName: String,
+        address: String,
+        latitude: Float,
+        longitude: Float,
+        notes: String
+    ) {
+        _ownerName.value = name
+        _ownerEmail.value = email
+        _pickupAddress.value = address
+        _pickupLatitude.value = latitude
+        _pickupLongitude.value = longitude
+        _pickupNotes.value = notes
+
+        prefs.edit()
+            .putString("owner_name", name)
+            .putString("owner_email", email)
+            .putString("pickup_address", address)
+            .putFloat("pickup_latitude", latitude)
+            .putFloat("pickup_longitude", longitude)
+            .putString("pickup_notes", notes)
+            .apply()
+
+        updateCustomStoreName(storeName)
+        addSyncLog("Profil Akun dan Pinpoint Penjemputan diperbarui.")
     }
 
     fun updatePromoDiscount(percent: Int) {

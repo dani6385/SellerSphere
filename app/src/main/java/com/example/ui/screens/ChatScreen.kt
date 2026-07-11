@@ -159,7 +159,76 @@ fun ChatScreen(
         }
     }
 
-    
+    fun callGeminiApi(prompt: String, callback: (String) -> Unit) {
+        isAiLoading = true
+        coroutineScope.launch {
+            val context = getStoreContext()
+            val fullPrompt = "Anda adalah asisten AI toko pintar bernama Seller Sphere. Anda berinteraksi dengan penjual.\n\nBerikut adalah konteks data toko penjual saat ini:\n$context\n\nPertanyaan/Permintaan penjual: $prompt\n\nBerikan tanggapan yang relevan, ramah, profesional, dan dalam Bahasa Indonesia yang baik."
+            
+            val result = withContext(Dispatchers.IO) {
+                val apiKey = com.example.BuildConfig.GEMINI_API_KEY
+                if (apiKey == "MY_GEMINI_API_KEY" || apiKey.isBlank()) {
+                    generateSmartFallback(prompt)
+                } else {
+                    try {
+                        val client = OkHttpClient.Builder()
+                            .connectTimeout(60, TimeUnit.SECONDS)
+                            .readTimeout(60, TimeUnit.SECONDS)
+                            .writeTimeout(60, TimeUnit.SECONDS)
+                            .build()
+                        
+                        val mediaType = "application/json; charset=utf-8".toMediaType()
+                        val jsonRequest = JSONObject().apply {
+                            put("contents", JSONArray().apply {
+                                put(JSONObject().apply {
+                                    put("parts", JSONArray().apply {
+                                        put(JSONObject().apply {
+                                            put("text", fullPrompt)
+                                        })
+                                    })
+                                })
+                            })
+                        }
+                        
+                        val body = jsonRequest.toString().toRequestBody(mediaType)
+                        val request = Request.Builder()
+                            .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey")
+                            .post(body)
+                            .build()
+                        
+                        val response = client.newCall(request).execute()
+                        if (response.isSuccessful) {
+                            val responseBody = response.body?.string() ?: ""
+                            val jsonObject = JSONObject(responseBody)
+                            val candidates = jsonObject.getJSONArray("candidates")
+                            if (candidates.length() > 0) {
+                                val candidate = candidates.getJSONObject(0)
+                                val contentObj = candidate.getJSONObject("content")
+                                val parts = contentObj.getJSONArray("parts")
+                                if (parts.length() > 0) {
+                                    parts.getJSONObject(0).getString("text")
+                                } else {
+                                    generateSmartFallback(prompt)
+                                }
+                            } else {
+                                generateSmartFallback(prompt)
+                            }
+                        } else {
+                            generateSmartFallback(prompt)
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        generateSmartFallback(prompt)
+                    }
+                }
+            }
+            
+            withContext(Dispatchers.Main) {
+                callback(result)
+                isAiLoading = false
+            }
+        }
+    }
 
     val totalUnread = buyerChats.sumOf { it.unreadCount }
 

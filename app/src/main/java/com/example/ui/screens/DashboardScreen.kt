@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.LocalShipping
@@ -127,7 +128,8 @@ import java.util.Locale
 fun DashboardScreen(
     viewModel: AppViewModel,
     onNavigateToInventory: () -> Unit,
-    onNavigateToTransactions: () -> Unit
+    onNavigateToTransactions: () -> Unit,
+    onNavigateToChat: (String) -> Unit
 ) {
     val products by viewModel.products.collectAsState()
     val lowStockList by viewModel.lowStockProducts.collectAsState()
@@ -467,7 +469,7 @@ fun DashboardScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     // Draw Interactive Chart
-                    ShopsphereWeeklyOrderChart(orders = shopsphereOrders, viewModel = viewModel)
+                    ShopsphereWeeklyOrderChart(orders = shopsphereOrders, viewModel = viewModel, onNavigateToChat = onNavigateToChat)
                 }
             }
         }
@@ -580,7 +582,7 @@ fun DashboardScreen(
 }
 
 @Composable
-fun ShopsphereWeeklyOrderChart(orders: List<ShopsphereOrder>, viewModel: AppViewModel) {
+fun ShopsphereWeeklyOrderChart(orders: List<ShopsphereOrder>, viewModel: AppViewModel, onNavigateToChat: (String) -> Unit) {
     val daysData = remember(orders) {
         val sdfLabel = SimpleDateFormat("E", Locale("in", "ID")) // Mon, Tue...
         val sdfDate = SimpleDateFormat("dd/MM", Locale.getDefault())
@@ -778,7 +780,7 @@ fun ShopsphereWeeklyOrderChart(orders: List<ShopsphereOrder>, viewModel: AppView
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 dayOrders.forEach { order ->
-                    OrderPickupItem(order = order, viewModel = viewModel)
+                    OrderPickupItem(order = order, viewModel = viewModel, onNavigateToChat = onNavigateToChat)
                 }
             }
         }
@@ -790,7 +792,7 @@ data class DayOrderStats(val completed: Int, val awaiting: Int) {
 }
 
 @Composable
-fun OrderPickupItem(order: ShopsphereOrder, viewModel: AppViewModel) {
+fun OrderPickupItem(order: ShopsphereOrder, viewModel: AppViewModel, onNavigateToChat: (String) -> Unit) {
     val isPickedUp = order.status == "Selesai Diambil"
     var showVerificationDialog by remember { mutableStateOf(false) }
 
@@ -825,11 +827,25 @@ fun OrderPickupItem(order: ShopsphereOrder, viewModel: AppViewModel) {
                         fontSize = 14.sp,
                         color = if (isPickedUp) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
                     )
-                    Text(
-                        text = "Pembeli: ${order.customerName}",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Pembeli: ${order.customerName}",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(
+                            imageVector = Icons.Default.Chat,
+                            contentDescription = "Chat Pembeli",
+                            tint = NeonCyan,
+                            modifier = Modifier
+                                .size(14.dp)
+                                .clickable {
+                                    viewModel.activeChatBuyerName.value = order.customerName
+                                    onNavigateToChat(order.customerName)
+                                }
+                        )
+                    }
                 }
 
                 // Status Badge

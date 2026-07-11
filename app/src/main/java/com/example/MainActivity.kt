@@ -925,6 +925,13 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
                                     restoreState = true
                                 }
                             }
+                            onNavigateToChat = { buyerName ->
+                                navController.navigate("chat") {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
                         )
                     }
 
@@ -942,7 +949,16 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
                     }
 
                     composable("kasir") {
-                        TransactionScreen(viewModel = viewModel)
+                        TransactionScreen(
+                            viewModel = viewModel,
+                            onNavigateToChat = { buyerName ->
+                                navController.navigate("chat") {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        )
                     }
 
                     composable("label") {
@@ -1463,4 +1479,3 @@ fun ProfileDetailRow(label: String, value: String) {
         )
     }
 }
-

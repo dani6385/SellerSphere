@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.Image
@@ -64,11 +65,15 @@ fun InventoryScreen(
 
     var selectedSortKey by remember { mutableStateOf("Alphabetical") }
 
-    val filteredProducts = remember(products, searchQuery, selectedCategory) {
+    val isSafeModeEnabled by viewModel.isSafeModeEnabled.collectAsState()
+    val safeModeAgeLimit by viewModel.safeModeAgeLimit.collectAsState()
+
+    val filteredProducts = remember(products, searchQuery, selectedCategory, isSafeModeEnabled, safeModeAgeLimit) {
         products.filter { p ->
             val matchesSearch = p.name.contains(searchQuery, ignoreCase = true) || p.sku.contains(searchQuery, ignoreCase = true)
             val matchesCategory = selectedCategory == "Semua" || p.category == selectedCategory
-            matchesSearch && matchesCategory
+            val matchesSafeMode = !isSafeModeEnabled || p.ageRating <= safeModeAgeLimit
+            matchesSearch && matchesCategory && matchesSafeMode
         }
     }
 
@@ -110,6 +115,120 @@ fun InventoryScreen(
                 .height(52.dp)
                 .testTag("inventory_search_field")
         )
+
+        // 1b. Safe Mode controls row
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = if (isSafeModeEnabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.05f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            ),
+            border = BorderStroke(
+                width = 1.dp,
+                color = if (isSafeModeEnabled) NeonCyan.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+            ),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth().testTag("safe_mode_search_control")
+        ) {
+            Column(
+                modifier = Modifier.padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = if (isSafeModeEnabled) Icons.Default.Shield else Icons.Default.VerifiedUser,
+                            contentDescription = "Safe Mode",
+                            tint = if (isSafeModeEnabled) NeonCyan else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "Safe Mode",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (isSafeModeEnabled) "Filter hasil pencarian sesuai batas usia" else "Batas usia pencarian tidak aktif",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = isSafeModeEnabled,
+                        onCheckedChange = { viewModel.toggleSafeMode(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.Black,
+                            checkedTrackColor = NeonCyan,
+                            uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        modifier = Modifier.scale(0.8f).testTag("safe_mode_toggle_switch")
+                    )
+                }
+
+                if (isSafeModeEnabled) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(0.5.dp)
+                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Batas Usia Pengguna:",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            val ageOptions = listOf(
+                                0 to "Semua (SU)",
+                                13 to "Remaja (13+)",
+                                18 to "Dewasa (18+)"
+                            )
+                            ageOptions.forEach { (ageVal, label) ->
+                                val isSelected = safeModeAgeLimit == ageVal
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (isSelected) NeonCyan.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.4f))
+                                        .border(
+                                            width = 1.dp,
+                                            color = if (isSelected) NeonCyan else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                            shape = RoundedCornerShape(6.dp)
+                                        )
+                                        .clickable { viewModel.updateSafeModeAgeLimit(ageVal) }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = label.split(" ").first(), // Short label SU, Remaja, Dewasa
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) NeonCyan else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // 2. Categories Horizontally Scrollable next to Sort Dropdown
         Row(
@@ -447,8 +566,8 @@ fun InventoryScreen(
             title = "Tambah Produk Baru",
             viewModel = viewModel,
             onDismiss = { showAddDialog = false },
-            onSave = { name, sku, stock, purchase, sell, cat, threshold, images ->
-                viewModel.addProduct(name, sku, stock, purchase, sell, cat, threshold, images)
+            onSave = { name, sku, stock, purchase, sell, cat, threshold, images, age ->
+                viewModel.addProduct(name, sku, stock, purchase, sell, cat, threshold, images, age)
                 showAddDialog = false
             }
         )
@@ -461,7 +580,7 @@ fun InventoryScreen(
             product = product,
             viewModel = viewModel,
             onDismiss = { editingProduct = null },
-            onSave = { name, sku, stock, purchase, sell, cat, threshold, images ->
+            onSave = { name, sku, stock, purchase, sell, cat, threshold, images, age ->
                 viewModel.updateProduct(
                     product.copy(
                         name = name,
@@ -471,7 +590,8 @@ fun InventoryScreen(
                         sellingPrice = sell,
                         category = cat,
                         minStockThreshold = threshold,
-                        imageUrls = images
+                        imageUrls = images,
+                        ageRating = age
                     )
                 )
                 editingProduct = null
@@ -715,6 +835,47 @@ fun ProductItemCard(
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                             )
                         }
+
+                        // Age classification badge
+                        val ageLabel = when (product.ageRating) {
+                            18 -> "Dewasa (18+)"
+                            13 -> "Remaja (13+)"
+                            else -> "Semua Umur (SU)"
+                        }
+                        val ageBgColor = when (product.ageRating) {
+                            18 -> RadiantRose.copy(alpha = 0.15f)
+                            13 -> WarmOrange.copy(alpha = 0.15f)
+                            else -> SoftTeal.copy(alpha = 0.15f)
+                        }
+                        val ageTextColor = when (product.ageRating) {
+                            18 -> RadiantRose
+                            13 -> WarmOrange
+                            else -> SoftTeal
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Surface(
+                            color = ageBgColor,
+                            contentColor = ageTextColor,
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.align(Alignment.Start)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (product.ageRating >= 13) Icons.Default.Warning else Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(10.dp)
+                                )
+                                Text(
+                                    text = ageLabel,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -861,7 +1022,7 @@ fun ProductFormDialog(
     product: Product? = null,
     viewModel: AppViewModel,
     onDismiss: () -> Unit,
-    onSave: (String, String, Int, Double, Double, String, Int, String) -> Unit
+    onSave: (String, String, Int, Double, Double, String, Int, String, Int) -> Unit
 ) {
     var name by remember { mutableStateOf(product?.name ?: "") }
     var sku by remember { mutableStateOf(product?.sku ?: "") }
@@ -870,6 +1031,7 @@ fun ProductFormDialog(
     var sellText by remember { mutableStateOf(product?.sellingPrice?.toString() ?: "") }
     var category by remember { mutableStateOf(product?.category ?: "Umum") }
     var thresholdText by remember { mutableStateOf(product?.minStockThreshold?.toString() ?: "5") }
+    var ageRating by remember { mutableStateOf(product?.ageRating ?: 0) }
 
     val initialUrls = remember(product) {
         if (product?.imageUrls?.isNotBlank() == true) {
@@ -976,6 +1138,51 @@ fun ProductFormDialog(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                }
+                item {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "Klasifikasi Batas Usia",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            val options = listOf(
+                                0 to "Semua (SU)",
+                                13 to "Remaja (13+)",
+                                18 to "Dewasa (18+)"
+                            )
+                            options.forEach { (valInt, label) ->
+                                val isSel = ageRating == valInt
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSel) NeonCyan.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant)
+                                        .border(
+                                            width = 1.dp,
+                                            color = if (isSel) NeonCyan else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable { ageRating = valInt }
+                                        .padding(vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSel) NeonCyan else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Add up to 10 product images/photos section
@@ -1113,7 +1320,7 @@ fun ProductFormDialog(
 
                     if (name.isNotBlank() && stockVal != null && purchaseVal != null && sellVal != null) {
                         val imageUrlsJoined = imageUrlsList.joinToString(",")
-                        onSave(name, sku, stockVal, purchaseVal, sellVal, category, thresholdVal, imageUrlsJoined)
+                        onSave(name, sku, stockVal, purchaseVal, sellVal, category, thresholdVal, imageUrlsJoined, ageRating)
                     } else {
                         hasError = true
                     }

@@ -13,7 +13,8 @@ data class Product(
     val sellingPrice: Double = 0.0,
     val category: String = "Umum",
     val minStockThreshold: Int = 5,
-    val imageUrls: String = ""
+    val imageUrls: String = "",
+    val ageRating: Int = 0
 ) {
     val isLowStock: Boolean get() = stock <= minStockThreshold
     val profitPerUnit: Double get() = sellingPrice - purchasePrice

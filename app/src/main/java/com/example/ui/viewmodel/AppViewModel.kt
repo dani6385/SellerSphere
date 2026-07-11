@@ -120,6 +120,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         addSyncLog("Metode pembayaran default diubah ke: $method")
     }
 
+    // --- Safe Mode Search / Age Filtering ---
+    private val _isSafeModeEnabled = MutableStateFlow(prefs.getBoolean("is_safe_mode_enabled", false))
+    val isSafeModeEnabled: StateFlow<Boolean> = _isSafeModeEnabled.asStateFlow()
+
+    private val _safeModeAgeLimit = MutableStateFlow(prefs.getInt("safe_mode_age_limit", 13))
+    val safeModeAgeLimit: StateFlow<Int> = _safeModeAgeLimit.asStateFlow()
+
+    fun toggleSafeMode(enabled: Boolean) {
+        _isSafeModeEnabled.value = enabled
+        prefs.edit().putBoolean("is_safe_mode_enabled", enabled).apply()
+        addSyncLog("Safe Mode pencarian diubah ke: ${if (enabled) "Aktif" else "Nonaktif"}")
+    }
+
+    fun updateSafeModeAgeLimit(age: Int) {
+        _safeModeAgeLimit.value = age
+        prefs.edit().putInt("safe_mode_age_limit", age).apply()
+        addSyncLog("Batas usia Safe Mode diatur ke: $age tahun")
+    }
+
     // --- Firebase Realtime Database Configuration ---
     private val _rtdbUrl = MutableStateFlow(
         prefs.getString("firebase_rtdb_url", "https://matrixsphere-c3de9-default-rtdb.asia-southeast1.firebasedatabase.app") 
@@ -161,6 +180,56 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         prefs.getString("pickup_notes", "Pagar hitam, di depan minimarket") ?: "Pagar hitam, di depan minimarket"
     )
     val pickupNotes: StateFlow<String> = _pickupNotes.asStateFlow()
+
+    // --- Notification Preferences for Email, WA, and SMS ---
+    private val _ownerWhatsapp = MutableStateFlow(
+        prefs.getString("owner_whatsapp", "081234567890") ?: "081234567890"
+    )
+    val ownerWhatsapp: StateFlow<String> = _ownerWhatsapp.asStateFlow()
+
+    private val _ownerSms = MutableStateFlow(
+        prefs.getString("owner_sms", "081234567890") ?: "081234567890"
+    )
+    val ownerSms: StateFlow<String> = _ownerSms.asStateFlow()
+
+    private val _isEmailNotificationEnabled = MutableStateFlow(
+        prefs.getBoolean("is_email_notification_enabled", true)
+    )
+    val isEmailNotificationEnabled: StateFlow<Boolean> = _isEmailNotificationEnabled.asStateFlow()
+
+    private val _isWhatsappNotificationEnabled = MutableStateFlow(
+        prefs.getBoolean("is_whatsapp_notification_enabled", true)
+    )
+    val isWhatsappNotificationEnabled: StateFlow<Boolean> = _isWhatsappNotificationEnabled.asStateFlow()
+
+    private val _isSmsNotificationEnabled = MutableStateFlow(
+        prefs.getBoolean("is_sms_notification_enabled", true)
+    )
+    val isSmsNotificationEnabled: StateFlow<Boolean> = _isSmsNotificationEnabled.asStateFlow()
+
+    fun updateNotificationPreferences(
+        whatsapp: String,
+        sms: String,
+        emailEnabled: Boolean,
+        whatsappEnabled: Boolean,
+        smsEnabled: Boolean
+    ) {
+        _ownerWhatsapp.value = whatsapp
+        _ownerSms.value = sms
+        _isEmailNotificationEnabled.value = emailEnabled
+        _isWhatsappNotificationEnabled.value = whatsappEnabled
+        _isSmsNotificationEnabled.value = smsEnabled
+
+        prefs.edit()
+            .putString("owner_whatsapp", whatsapp)
+            .putString("owner_sms", sms)
+            .putBoolean("is_email_notification_enabled", emailEnabled)
+            .putBoolean("is_whatsapp_notification_enabled", whatsappEnabled)
+            .putBoolean("is_sms_notification_enabled", smsEnabled)
+            .apply()
+
+        addSyncLog("Preferensi Notifikasi (Email, WA, SMS) diperbarui.")
+    }
 
     val sanitizedStoreName: String
         get() = _customStoreName.value.trim().lowercase()
@@ -400,7 +469,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // --- Product Operations ---
-    fun addProduct(name: String, sku: String, stock: Int, purchasePrice: Double, sellingPrice: Double, category: String, threshold: Int, imageUrls: String = "") {
+    fun addProduct(name: String, sku: String, stock: Int, purchasePrice: Double, sellingPrice: Double, category: String, threshold: Int, imageUrls: String = "", ageRating: Int = 0) {
         viewModelScope.launch {
             val product = Product(
                 name = name,
@@ -410,7 +479,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 sellingPrice = sellingPrice,
                 category = category,
                 minStockThreshold = threshold,
-                imageUrls = imageUrls
+                imageUrls = imageUrls,
+                ageRating = ageRating
             )
             repository.insertProduct(product)
             pushDataToRtdb()
@@ -1152,11 +1222,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             if (count == 0) {
                 // Prepopulate products
                 val sampleProducts = listOf(
-                    Product(name = "Kemeja Flanel Slimfit", sku = "BJU-01", stock = 3, purchasePrice = 85000.0, sellingPrice = 135000.0, category = "Pakaian", minStockThreshold = 4),
-                    Product(name = "Jeans Denim Premium", sku = "BJU-02", stock = 12, purchasePrice = 120000.0, sellingPrice = 199000.0, category = "Pakaian", minStockThreshold = 5),
-                    Product(name = "Botol Minum Tumbler", sku = "ACC-01", stock = 20, purchasePrice = 25000.0, sellingPrice = 45000.0, category = "Aksesoris", minStockThreshold = 6),
-                    Product(name = "Sepatu Sneakers Klasik", sku = "SPT-01", stock = 2, purchasePrice = 150000.0, sellingPrice = 250000.0, category = "Sepatu", minStockThreshold = 3),
-                    Product(name = "Kaos Polos Cotton 30s", sku = "BJU-03", stock = 45, purchasePrice = 18000.0, sellingPrice = 35000.0, category = "Pakaian", minStockThreshold = 8)
+                    Product(name = "Kemeja Flanel Slimfit", sku = "BJU-01", stock = 3, purchasePrice = 85000.0, sellingPrice = 135000.0, category = "Pakaian", minStockThreshold = 4, ageRating = 13),
+                    Product(name = "Jeans Denim Premium", sku = "BJU-02", stock = 12, purchasePrice = 120000.0, sellingPrice = 199000.0, category = "Pakaian", minStockThreshold = 5, ageRating = 18),
+                    Product(name = "Botol Minum Tumbler", sku = "ACC-01", stock = 20, purchasePrice = 25000.0, sellingPrice = 45000.0, category = "Aksesoris", minStockThreshold = 6, ageRating = 0),
+                    Product(name = "Sepatu Sneakers Klasik", sku = "SPT-01", stock = 2, purchasePrice = 150000.0, sellingPrice = 250000.0, category = "Sepatu", minStockThreshold = 3, ageRating = 13),
+                    Product(name = "Kaos Polos Cotton 30s", sku = "BJU-03", stock = 45, purchasePrice = 18000.0, sellingPrice = 35000.0, category = "Pakaian", minStockThreshold = 8, ageRating = 0),
+                    Product(name = "Rokok Marlboro Merah", sku = "RKK-01", stock = 50, purchasePrice = 32000.0, sellingPrice = 38000.0, category = "Tembakau", minStockThreshold = 5, ageRating = 18),
+                    Product(name = "Kopi Hitam Espresso", sku = "KPI-01", stock = 15, purchasePrice = 12000.0, sellingPrice = 18000.0, category = "Minuman", minStockThreshold = 5, ageRating = 13)
                 )
 
                 sampleProducts.forEach { repository.insertProduct(it) }

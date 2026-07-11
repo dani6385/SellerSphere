@@ -114,10 +114,15 @@ fun TransactionScreen(
             var scanFeedbackMessage by remember { mutableStateOf("") }
             var scanFeedbackIsSuccess by remember { mutableStateOf(true) }
 
+            val isSafeModeEnabled by viewModel.isSafeModeEnabled.collectAsState()
+            val safeModeAgeLimit by viewModel.safeModeAgeLimit.collectAsState()
+
             // Filter available products
-            val filteredProducts = remember(products, searchQuery) {
+            val filteredProducts = remember(products, searchQuery, isSafeModeEnabled, safeModeAgeLimit) {
                 products.filter { p ->
-                    p.name.contains(searchQuery, ignoreCase = true) || p.sku.contains(searchQuery, ignoreCase = true)
+                    val matchesSearch = p.name.contains(searchQuery, ignoreCase = true) || p.sku.contains(searchQuery, ignoreCase = true)
+                    val matchesSafeMode = !isSafeModeEnabled || p.ageRating <= safeModeAgeLimit
+                    matchesSearch && matchesSafeMode
                 }
             }
 
@@ -765,6 +770,22 @@ fun PosProductCard(
                         text = "SKU: ${product.sku}",
                         fontSize = 9.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                    val ageLabel = when (product.ageRating) {
+                        18 -> "18+"
+                        13 -> "13+"
+                        else -> "SU"
+                    }
+                    val ageColor = when (product.ageRating) {
+                        18 -> RadiantRose
+                        13 -> WarmOrange
+                        else -> SoftTeal
+                    }
+                    Text(
+                        text = "Batas Usia: $ageLabel",
+                        fontSize = 8.sp,
+                        color = ageColor,
+                        fontWeight = FontWeight.Bold
                     )
                 }
 

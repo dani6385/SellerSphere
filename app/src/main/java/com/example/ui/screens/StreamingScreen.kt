@@ -25,6 +25,9 @@ import com.example.ui.theme.*
 import com.example.ui.viewmodel.AppViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import android.net.Uri
+import android.widget.VideoView
+import androidx.compose.ui.viewinterop.AndroidView
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,6 +36,10 @@ fun StreamingScreen(viewModel: AppViewModel) {
     var viewerCount by remember { mutableStateOf(0) }
     var liveDurationSec by remember { mutableStateOf(0) }
     val coroutineScope = rememberCoroutineScope()
+
+    var useAutoPlayVideo by remember { mutableStateOf(true) }
+    var selectedVideoUrl by remember { mutableStateOf("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4") }
+    var customVideoUrlText by remember { mutableStateOf("") }
 
     // Mock Live Chat messages
     val mockChatUsers = listOf("Randi", "Siska", "Budi", "Dewi", "Amir", "Vina", "Andi", "Lia", "Aris", "Mega")
@@ -140,26 +147,44 @@ fun StreamingScreen(viewModel: AppViewModel) {
                     .background(Color.Black)
             ) {
                 if (isLive) {
-                    // Futuristic glowing camera static lines / radar gradient
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        Color.Black.copy(alpha = 0.7f)
+                    if (useAutoPlayVideo) {
+                        AndroidView(
+                            factory = { context ->
+                                VideoView(context).apply {
+                                    setVideoURI(Uri.parse(selectedVideoUrl))
+                                    setOnPreparedListener { mediaPlayer ->
+                                        mediaPlayer.isLooping = true
+                                        mediaPlayer.start()
+                                    }
+                                }
+                            },
+                            update = { videoView ->
+                                videoView.start()
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        // Futuristic glowing camera static lines / radar gradient
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(
+                                            Color.Transparent,
+                                            Color.Black.copy(alpha = 0.7f)
+                                        )
                                     )
                                 )
-                            )
-                    ) {
-                        // Drawing static scanning wave lines
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            drawCircle(
-                                color = NeonCyan.copy(alpha = 0.04f),
-                                radius = size.height * 0.4f,
-                                center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
-                            )
+                        ) {
+                            // Drawing static scanning wave lines
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                drawCircle(
+                                    color = NeonCyan.copy(alpha = 0.04f),
+                                    radius = size.height * 0.4f,
+                                    center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+                                )
+                            }
                         }
                     }
 
@@ -272,12 +297,12 @@ fun StreamingScreen(viewModel: AppViewModel) {
 
                     // Overlaid text to indicate camera output simulation
                     Text(
-                        text = "📡 Kamera Aktif Menyiar...",
-                        color = Color.White.copy(alpha = 0.6f),
+                        text = if (useAutoPlayVideo) "📺 Putar Video Otomatis Aktif" else "📡 Kamera Aktif Menyiar...",
+                        color = Color.White.copy(alpha = 0.8f),
                         fontSize = 11.sp,
                         modifier = Modifier
                             .align(Alignment.Center)
-                            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 } else {
@@ -410,18 +435,187 @@ fun StreamingScreen(viewModel: AppViewModel) {
                         0 -> {
                             // TAB 1: Live Chat Console
                             if (!isLive) {
-                                Box(
+                                Column(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.Center
+                                        .verticalScroll(rememberScrollState())
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Text(
-                                        text = "Nyalakan Live untuk membuka interaksi chat dengan pelanggan.",
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                    )
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.PlayCircle,
+                                                        contentDescription = null,
+                                                        tint = NeonCyan,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text(
+                                                        text = "Putar Video Demo Otomatis",
+                                                        fontSize = 13.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                }
+                                                Switch(
+                                                    checked = useAutoPlayVideo,
+                                                    onCheckedChange = { useAutoPlayVideo = it },
+                                                    modifier = Modifier.testTag("autoplay_switch")
+                                                )
+                                            }
+                                            Text(
+                                                text = "Saat siaran dimulai, sistem akan memutar video promo/demonstrasi produk secara otomatis.",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                                modifier = Modifier.padding(top = 4.dp)
+                                            )
+                                        }
+                                    }
+
+                                    if (useAutoPlayVideo) {
+                                        Text(
+                                            text = "PILIH SUMBER VIDEO SIMULASI:",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(horizontal = 4.dp)
+                                        )
+
+                                        // Presets
+                                        val presets = listOf(
+                                            Triple("Fashion Promo", "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4", Icons.Default.ShoppingBag),
+                                            Triple("Tech Showcase", "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4", Icons.Default.Laptop),
+                                            Triple("Food & Drink", "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4", Icons.Default.Restaurant)
+                                        )
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            presets.forEach { (name, url, icon) ->
+                                                val isSelected = selectedVideoUrl == url
+                                                Card(
+                                                    colors = CardDefaults.cardColors(
+                                                        containerColor = if (isSelected) NeonCyan.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)
+                                                    ),
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    border = BorderStroke(
+                                                        width = 1.dp,
+                                                        color = if (isSelected) NeonCyan else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                                                    ),
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .clickable {
+                                                            selectedVideoUrl = url
+                                                            customVideoUrlText = ""
+                                                        }
+                                                        .testTag("video_preset_${name.replace(" ", "_").lowercase()}")
+                                                ) {
+                                                    Column(
+                                                        modifier = Modifier.padding(8.dp),
+                                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                                        verticalArrangement = Arrangement.Center
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = icon,
+                                                            contentDescription = null,
+                                                            tint = if (isSelected) NeonCyan else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            modifier = Modifier.size(24.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.height(6.dp))
+                                                        Text(
+                                                            text = name,
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = if (isSelected) NeonCyan else MaterialTheme.colorScheme.onSurface,
+                                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Custom URL Field
+                                        OutlinedTextField(
+                                            value = customVideoUrlText,
+                                            onValueChange = {
+                                                customVideoUrlText = it
+                                                if (it.isNotBlank()) {
+                                                    selectedVideoUrl = it
+                                                }
+                                            },
+                                            label = { Text("URL Video Kustom (MP4)") },
+                                            placeholder = { Text("https://contoh.com/video.mp4") },
+                                            singleLine = true,
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Default.Link,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .testTag("custom_video_url_field"),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = NeonCyan,
+                                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                            )
+                                        )
+
+                                        // Current Source Info
+                                        Card(
+                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                                            shape = RoundedCornerShape(8.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(8.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Info,
+                                                    contentDescription = null,
+                                                    tint = SoftTeal,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = "Sumber aktif: ${selectedVideoUrl.substringAfterLast("/")}",
+                                                    fontSize = 10.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(24.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = "Simulasi kamera radar aktif. Klik 'Mulai Live' di atas untuk memulai siaran langsung.",
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                            )
+                                        }
+                                    }
                                 }
                             } else {
                                 Column(

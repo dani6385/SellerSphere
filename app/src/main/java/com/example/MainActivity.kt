@@ -86,6 +86,12 @@ import com.example.ui.screens.TransactionScreen
 import com.example.ui.screens.EditProfileScreen
 import com.example.ui.screens.StreamingScreen
 import com.example.ui.screens.TrendScreen
+import com.example.ui.screens.SlideScreen
+import com.example.ui.screens.AccountScreen
+import com.example.ui.screens.TermsConditionsScreen
+import com.example.ui.screens.SecurityScreen
+import com.example.ui.screens.PrivacyScreen
+import com.example.ui.screens.IntellectualPropertyScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.NeonCyan
 import com.example.ui.theme.SoftTeal
@@ -1087,6 +1093,98 @@ fun MainShell(viewModel: AppViewModel = viewModel()) {
                                     launchSingleTop = true
                                     restoreState = true
                                 }
+                            },
+                            onNavigateToSlides = {
+                                navController.navigate("slide")
+                            }
+                        )
+                    }
+
+                    composable("slide") {
+                        SlideScreen(
+                            onNavigateBack = {
+                                navController.popBackStack()
+                            },
+                            onNavigateToAccount = {
+                                navController.navigate("account")
+                            }
+                        )
+                    }
+
+                    composable("account") {
+                        AccountScreen(
+                            viewModel = viewModel,
+                            onNavigateBack = {
+                                navController.popBackStack()
+                            },
+                            onNavigateToEditProfile = {
+                                navController.navigate("edit_profile")
+                            },
+                            onNavigateToTermsConditions = {
+                                navController.navigate("syarat_ketentuan")
+                            },
+                            onNavigateToSecurity = {
+                                navController.navigate("keamanan_akun")
+                            },
+                            onNavigateToPrivacy = {
+                                navController.navigate("privasi_akun")
+                            },
+                            onNavigateToNotification = {
+                                navController.navigate("notifikasi_saluran")
+                            },
+                            onNavigateToIntellectualProperty = {
+                                navController.navigate("haki")
+                            }
+                        )
+                    }
+
+                    composable("syarat_ketentuan") {
+                        TermsConditionsScreen(
+                            onNavigateBack = {
+                                navController.popBackStack()
+                            }
+                        )
+                    }
+
+                    composable("keamanan_akun") {
+                        SecurityScreen(
+                            viewModel = viewModel,
+                            onNavigateBack = {
+                                navController.popBackStack()
+                            }
+                        )
+                    }
+
+                    composable("privasi_akun") {
+                        PrivacyScreen(
+                            viewModel = viewModel,
+                            onNavigateBack = {
+                                navController.popBackStack()
+                            }
+                        )
+                    }
+
+                    composable("notifikasi_saluran") {
+                        NotificationScreen(
+                            viewModel = viewModel,
+                            onNavigateBack = {
+                                navController.popBackStack()
+                            },
+                            onNavigateToInventory = {
+                                navController.navigate("barang") {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        )
+                    }
+
+                    composable("haki") {
+                        IntellectualPropertyScreen(
+                            viewModel = viewModel,
+                            onNavigateBack = {
+                                navController.popBackStack()
                             }
                         )
                     }

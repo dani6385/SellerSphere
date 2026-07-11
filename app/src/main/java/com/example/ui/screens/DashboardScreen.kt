@@ -130,7 +130,8 @@ fun DashboardScreen(
     viewModel: AppViewModel,
     onNavigateToInventory: () -> Unit,
     onNavigateToTransactions: () -> Unit,
-    onNavigateToChat: (String) -> Unit
+    onNavigateToChat: (String) -> Unit,
+    onNavigateToSlides: () -> Unit
 ) {
     val products by viewModel.products.collectAsState()
     val lowStockList by viewModel.lowStockProducts.collectAsState()
@@ -180,6 +181,8 @@ fun DashboardScreen(
                     .fillMaxWidth()
                     .height(160.dp)
                     .clip(RoundedCornerShape(16.dp))
+                    .clickable { onNavigateToSlides() }
+                    .testTag("home_hero_banner_box")
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.img_hero_banner),

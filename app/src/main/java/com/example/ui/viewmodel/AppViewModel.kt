@@ -239,7 +239,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             .ifBlank { "unknown-store" }
 
     private val _sellerSphereNode = MutableStateFlow(
-        (_customStoreName.value.trim().lowercase()
+        prefs.getString("seller_sphere_node", null) ?: (_customStoreName.value.trim().lowercase()
             .replace(Regex("[^a-z0-9_-]"), "-")
             .replace(Regex("-+"), "-")
             .trim('-')
@@ -248,7 +248,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val sellerSphereNode = _sellerSphereNode.asStateFlow()
 
     private val _shopSphereNode = MutableStateFlow(
-        (_customStoreName.value.trim().lowercase()
+        prefs.getString("shop_sphere_node", null) ?: (_customStoreName.value.trim().lowercase()
             .replace(Regex("[^a-z0-9_-]"), "-")
             .replace(Regex("-+"), "-")
             .trim('-')
@@ -726,7 +726,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun fetchOrdersFromRtdb() {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                val url = "${rtdbUrl.value}/shop-sphere/${shopSphereNode.value}/orders.json"
+                val url = "${rtdbUrl.value}/shop_sphere/${shopSphereNode.value}/orders.json"
                 val request = Request.Builder()
                     .url(url)
                     .get()
@@ -757,7 +757,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun uploadOrdersToRtdb(ordersList: List<ShopsphereOrder> = _shopsphereOrders.value) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                val url = "${rtdbUrl.value}/shop-sphere/${shopSphereNode.value}/orders.json"
+                val url = "${rtdbUrl.value}/shop_sphere/${shopSphereNode.value}/orders.json"
                 val json = orderListAdapter.toJson(ordersList)
                 val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
                 val requestBody = RequestBody.create(mediaType, json)
@@ -791,7 +791,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val localSaleItems = repository.allSaleItems.first()
                 val localTargets = repository.allTargets.first()
 
-                val baseNodeUrl = "${rtdbUrl.value}/seller-sphere/${sellerSphereNode.value}"
+                val baseNodeUrl = "${rtdbUrl.value}/seller_sphere/${sellerSphereNode.value}"
 
                 addSyncLog("Mengunggah ${localProducts.size} produk...")
                 val prodJson = productListAdapter.toJson(localProducts)
@@ -829,7 +829,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _syncStatus.value = "Mengunduh..."
                 addSyncLog("Memulai unduh data dari Seller Sphere RTDB...")
 
-                val baseNodeUrl = "${rtdbUrl.value}/seller-sphere/${sellerSphereNode.value}"
+                val baseNodeUrl = "${rtdbUrl.value}/seller_sphere/${sellerSphereNode.value}"
 
                 addSyncLog("Mengunduh katalog produk...")
                 val productsJson = downloadJsonNode("$baseNodeUrl/products.json")
@@ -934,7 +934,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val saleItems = repository.allSaleItems.first()
                 val targets = repository.allTargets.first()
 
-                val baseNodeUrl = "${rtdbUrl.value}/seller-sphere/${sellerSphereNode.value}"
+                val baseNodeUrl = "${rtdbUrl.value}/seller_sphere/${sellerSphereNode.value}"
                 uploadJsonNode("$baseNodeUrl/products.json", productListAdapter.toJson(products))
                 uploadJsonNode("$baseNodeUrl/transactions.json", transactionListAdapter.toJson(transactions))
                 uploadJsonNode("$baseNodeUrl/sale_items.json", saleItemListAdapter.toJson(saleItems))
@@ -986,7 +986,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
 
-                val ordersUrl = "${rtdbUrl.value}/shop-sphere/${shopSphereNode.value}/orders.json"
+                val ordersUrl = "${rtdbUrl.value}/shop_sphere/${shopSphereNode.value}/orders.json"
                 uploadJsonNode(ordersUrl, orderListAdapter.toJson(ordersList))
 
                 _shopsphereOrders.value = ordersList
@@ -1009,7 +1009,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 try {
-                    val baseNodeUrl = "${rtdbUrl.value}/seller-sphere/${sellerSphereNode.value}"
+                    val baseNodeUrl = "${rtdbUrl.value}/seller_sphere/${sellerSphereNode.value}"
                     
                     addSyncLog("Mengunduh data toko dari node ${sellerSphereNode.value}...")
                     val productsJson = downloadJsonNode("$baseNodeUrl/products.json")
@@ -1060,7 +1060,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     addSyncLog("Mengunduh data pesanan Shop Sphere...")
-                    val ordersUrl = "${rtdbUrl.value}/shop-sphere/${shopSphereNode.value}/orders.json"
+                    val ordersUrl = "${rtdbUrl.value}/shop_sphere/${shopSphereNode.value}/orders.json"
                     val ordersJson = downloadJsonNode(ordersUrl)
                     if (!ordersJson.isNullOrBlank() && ordersJson != "null") {
                         val orders = orderListAdapter.fromJson(ordersJson)

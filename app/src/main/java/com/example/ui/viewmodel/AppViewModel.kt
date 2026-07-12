@@ -469,7 +469,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // --- Product Operations ---
-    fun addProduct(name: String, sku: String, stock: Int, purchasePrice: Double, sellingPrice: Double, category: String, threshold: Int, imageUrls: String = "", ageRating: Int = 0) {
+    fun addProduct(name: String, sku: String, stock: Int, purchasePrice: Double, sellingPrice: Double, category: String, threshold: Int, imageUrls: String = "", ageRating: Int = 0, videoUrl: String = "") {
         viewModelScope.launch {
             val product = Product(
                 name = name,
@@ -480,7 +480,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 category = category,
                 minStockThreshold = threshold,
                 imageUrls = imageUrls,
-                ageRating = ageRating
+                ageRating = ageRating,
+                videoUrl = videoUrl
             )
             repository.insertProduct(product)
             pushDataToRtdb()

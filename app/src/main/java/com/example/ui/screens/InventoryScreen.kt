@@ -38,6 +38,9 @@ import com.example.ui.theme.WarmOrange
 import com.example.ui.theme.RadiantRose
 import com.example.ui.util.QrCodeUtil
 import com.example.ui.viewmodel.AppViewModel
+import android.widget.VideoView
+import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -566,8 +569,8 @@ fun InventoryScreen(
             title = "Tambah Produk Baru",
             viewModel = viewModel,
             onDismiss = { showAddDialog = false },
-            onSave = { name, sku, stock, purchase, sell, cat, threshold, images, age ->
-                viewModel.addProduct(name, sku, stock, purchase, sell, cat, threshold, images, age)
+            onSave = { name, sku, stock, purchase, sell, cat, threshold, images, age, video ->
+                viewModel.addProduct(name, sku, stock, purchase, sell, cat, threshold, images, age, video)
                 showAddDialog = false
             }
         )
@@ -580,7 +583,7 @@ fun InventoryScreen(
             product = product,
             viewModel = viewModel,
             onDismiss = { editingProduct = null },
-            onSave = { name, sku, stock, purchase, sell, cat, threshold, images, age ->
+            onSave = { name, sku, stock, purchase, sell, cat, threshold, images, age, video ->
                 viewModel.updateProduct(
                     product.copy(
                         name = name,
@@ -591,7 +594,8 @@ fun InventoryScreen(
                         category = cat,
                         minStockThreshold = threshold,
                         imageUrls = images,
-                        ageRating = age
+                        ageRating = age,
+                        videoUrl = video
                     )
                 )
                 editingProduct = null
@@ -741,20 +745,105 @@ fun ProductItemCard(
                         product.imageUrls.split(",").firstOrNull { it.isNotBlank() }
                     }
                     var showGalleryDialog by remember { mutableStateOf(false) }
+                    val hasVideo = product.videoUrl.isNotBlank()
+                    var isPlayingVideoInCard by remember { mutableStateOf(false) }
 
-                    if (firstImageUrl != null) {
+                    if (isPlayingVideoInCard && hasVideo) {
+                        Box(
+                            modifier = Modifier
+                                .size(60.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .border(1.5.dp, NeonCyan, RoundedCornerShape(8.dp))
+                                .clickable { isPlayingVideoInCard = false }
+                        ) {
+                            AndroidView(
+                                factory = { ctx ->
+                                    VideoView(ctx).apply {
+                                        setVideoPath(product.videoUrl)
+                                        setOnPreparedListener { mp ->
+                                            mp.isLooping = true
+                                            mp.start()
+                                        }
+                                    }
+                                },
+                                update = { vv ->
+                                    vv.start()
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+
+                            LaunchedEffect(isPlayingVideoInCard) {
+                                delay(30000L) // limit playback to max 30s
+                                isPlayingVideoInCard = false
+                            }
+
+                            // 30s overlay indicator
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .background(Color.Black.copy(alpha = 0.7f))
+                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                            ) {
+                                Text(
+                                    text = "30s",
+                                    color = NeonCyan,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    } else if (firstImageUrl != null) {
                         Box(
                             modifier = Modifier
                                 .size(60.dp)
                                 .clip(RoundedCornerShape(8.dp))
                                 .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
-                                .clickable { showGalleryDialog = true }
+                                .clickable { 
+                                    if (hasVideo) {
+                                        isPlayingVideoInCard = true
+                                    } else {
+                                        showGalleryDialog = true 
+                                    }
+                                }
                         ) {
                             AsyncImage(
                                 model = firstImageUrl,
                                 contentDescription = product.name,
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+
+                            if (hasVideo) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color.Black.copy(alpha = 0.4f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayCircle,
+                                        contentDescription = "Putar Video Otomatis",
+                                        tint = NeonCyan,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                        }
+                    } else if (hasVideo) {
+                        // Product has video but no image
+                        Box(
+                            modifier = Modifier
+                                .size(60.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .border(1.5.dp, NeonCyan, RoundedCornerShape(8.dp))
+                                .clickable { isPlayingVideoInCard = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayCircle,
+                                contentDescription = "Putar Video",
+                                tint = NeonCyan,
+                                modifier = Modifier.size(32.dp)
                             )
                         }
                     } else {
@@ -1015,6 +1104,26 @@ fun ProductItemCard(
     }
 }
 
+// Helper to save video locally
+fun saveVideoLocally(context: android.content.Context, uri: android.net.Uri): String? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(uri) ?: return null
+        val videoDir = java.io.File(context.filesDir, "product_videos")
+        if (!videoDir.exists()) videoDir.mkdirs()
+        val destFile = java.io.File(videoDir, "vid_${System.currentTimeMillis()}.mp4")
+        val outputStream = java.io.FileOutputStream(destFile)
+        inputStream.use { input ->
+            outputStream.use { output ->
+                input.copyTo(output)
+            }
+        }
+        destFile.absolutePath
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductFormDialog(
@@ -1022,7 +1131,7 @@ fun ProductFormDialog(
     product: Product? = null,
     viewModel: AppViewModel,
     onDismiss: () -> Unit,
-    onSave: (String, String, Int, Double, Double, String, Int, String, Int) -> Unit
+    onSave: (String, String, Int, Double, Double, String, Int, String, Int, String) -> Unit
 ) {
     var name by remember { mutableStateOf(product?.name ?: "") }
     var sku by remember { mutableStateOf(product?.sku ?: "") }
@@ -1032,6 +1141,46 @@ fun ProductFormDialog(
     var category by remember { mutableStateOf(product?.category ?: "Umum") }
     var thresholdText by remember { mutableStateOf(product?.minStockThreshold?.toString() ?: "5") }
     var ageRating by remember { mutableStateOf(product?.ageRating ?: 0) }
+    var videoUrl by remember { mutableStateOf(product?.videoUrl ?: "") }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var isSavingVideo by remember { mutableStateOf(false) }
+    var videoError by remember { mutableStateOf<String?>(null) }
+
+    val videoLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        uri?.let {
+            isSavingVideo = true
+            videoError = null
+            // Check video duration (must be max 30s)
+            val retriever = android.media.MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(context, it)
+                val durationStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                val durationMs = durationStr?.toLongOrNull() ?: 0L
+                if (durationMs > 30500L) { // Allow tiny buffer for 30s
+                    videoError = "Durasi video melebihi 30 detik! (${(durationMs/1000.0).toInt()} detik)"
+                    isSavingVideo = false
+                    retriever.release()
+                    return@let
+                }
+                retriever.release()
+
+                // Copy to local app files directory
+                val savedPath = saveVideoLocally(context, it)
+                if (savedPath != null) {
+                    videoUrl = savedPath
+                } else {
+                    videoError = "Gagal menyimpan file video secara lokal."
+                }
+            } catch (e: Exception) {
+                videoError = "Kesalahan membaca video: ${e.localizedMessage}"
+            } finally {
+                isSavingVideo = false
+            }
+        }
+    }
 
     val initialUrls = remember(product) {
         if (product?.imageUrls?.isNotBlank() == true) {
@@ -1298,6 +1447,208 @@ fun ProductFormDialog(
                     }
                 }
 
+                // Video Promo Section (Max 30s)
+                item {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "Video Promo / Demo Produk (Maks. 30s)",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f)
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.2f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            var isPlayingPreview by remember { mutableStateOf(false) }
+
+                            if (videoUrl.isNotBlank()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Video Terpasang:",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = NeonCyan
+                                        )
+                                        Text(
+                                            text = if (videoUrl.startsWith("/")) "Berkas Lokal: ${videoUrl.substringAfterLast("/")}" else videoUrl,
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                    }
+
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        IconButton(
+                                            onClick = { isPlayingPreview = !isPlayingPreview },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isPlayingPreview) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
+                                                contentDescription = "Putar Preview",
+                                                tint = SoftTeal,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
+
+                                        IconButton(
+                                            onClick = { 
+                                                videoUrl = "" 
+                                                isPlayingPreview = false
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Hapus Video",
+                                                tint = RadiantRose,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                if (isPlayingPreview) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(150.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color.Black)
+                                    ) {
+                                        AndroidView(
+                                            factory = { ctx ->
+                                                VideoView(ctx).apply {
+                                                    setVideoPath(videoUrl)
+                                                    setOnPreparedListener { mp ->
+                                                        mp.isLooping = true
+                                                        mp.start()
+                                                    }
+                                                }
+                                            },
+                                            update = { vv ->
+                                                vv.start()
+                                            },
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+
+                                        // Countdown overlay for max 30s
+                                        var timeLeft by remember { mutableStateOf(30) }
+                                        LaunchedEffect(isPlayingPreview) {
+                                            timeLeft = 30
+                                            while (timeLeft > 0 && isPlayingPreview) {
+                                                delay(1000L)
+                                                timeLeft--
+                                            }
+                                            isPlayingPreview = false
+                                        }
+
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(8.dp)
+                                                .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "Sisa: ${timeLeft}s",
+                                                color = Color.White,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    text = "Belum ada video produk. Tambahkan video promosi (maksimal 30 detik) yang akan diputar otomatis pada gambar produk.",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = { videoLauncher.launch("video/*") },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.weight(1.dp.value),
+                                    contentPadding = PaddingValues(vertical = 8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.VideoLibrary,
+                                        contentDescription = null,
+                                        tint = NeonCyan,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Pilih Video", fontSize = 11.sp, color = Color.White)
+                                }
+
+                                Button(
+                                    onClick = { videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.weight(1.dp.value),
+                                    contentPadding = PaddingValues(vertical = 8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Movie,
+                                        contentDescription = null,
+                                        tint = SoftTeal,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Video Sampel", fontSize = 11.sp, color = Color.White)
+                                }
+                            }
+
+                            if (isSavingVideo) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = NeonCyan)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Mengecek durasi & memproses...", fontSize = 11.sp, color = NeonCyan)
+                                }
+                            }
+
+                            if (videoError != null) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = videoError ?: "",
+                                    color = RadiantRose,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+
                 if (hasError) {
                     item {
                         Text(
@@ -1320,7 +1671,7 @@ fun ProductFormDialog(
 
                     if (name.isNotBlank() && stockVal != null && purchaseVal != null && sellVal != null) {
                         val imageUrlsJoined = imageUrlsList.joinToString(",")
-                        onSave(name, sku, stockVal, purchaseVal, sellVal, category, thresholdVal, imageUrlsJoined, ageRating)
+                        onSave(name, sku, stockVal, purchaseVal, sellVal, category, thresholdVal, imageUrlsJoined, ageRating, videoUrl)
                     } else {
                         hasError = true
                     }
